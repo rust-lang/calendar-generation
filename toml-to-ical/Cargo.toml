@@ -9,7 +9,10 @@ description = "Utility for generating iCalendar files from a list of events in T
 homepage = "https://github.com/davidtwco/toml-to-ical"
 keywords = ["calendar"]
 license = "MIT OR Apache-2.0"
-readme = "README.md"
+readme = "../README.md"
 repository = "https://github.com/davidtwco/toml-to-ical"
 
 [dependencies]
+chrono = { version = "0.4.31", features = ["serde"] }
+rrule = { version = "0.11.0", features = ["exrule", "serde"] }
+serde = { version = "1.0.194", features = ["derive"] }
