@@ -1,5 +1,5 @@
 use chrono::TimeZone;
-use rrule::{RRule, RRuleSet, Unvalidated};
+use rrule::{RRule, RRuleError, Unvalidated};
 use serde::Deserialize;
 use std::{
     fmt,
@@ -39,7 +39,7 @@ type UtcDateTime = chrono::DateTime<chrono::Utc>;
 type TzDateTime = chrono::DateTime<rrule::Tz>;
 
 pub trait External {
-    type Error;
+    type Error: From<RRuleError>;
 
     fn from_path(path: &Path) -> Result<Calendar, Self::Error>;
 }
@@ -67,7 +67,15 @@ impl Calendar {
                 root.events.extend(child.events.drain(..));
             }
         }
+        root.validate::<E>()?;
         Ok(root)
+    }
+
+    fn validate<E: External>(&self) -> Result<(), <E as External>::Error> {
+        for event in &self.events {
+            event.recurrence.validate(&event.start)?;
+        }
+        Ok(())
     }
 }
 
@@ -304,6 +312,12 @@ struct RecurrenceRule {
     until: Option<UtcDateTime>,
 }
 
+impl RecurrenceRule {
+    fn validate(&self, start: &UtcDateTime) -> Result<(), RRuleError> {
+        Into::<RRule<Unvalidated>>::into(*self).validate(start.to_tzdatetime()).map(|_| ())
+    }
+}
+
 impl Into<RRule<Unvalidated>> for RecurrenceRule {
     fn into(self) -> RRule<Unvalidated> {
         let mut rule = RRule::new(self.frequency.into());
@@ -317,6 +331,30 @@ impl Into<RRule<Unvalidated>> for RecurrenceRule {
             rule = rule.until(until.to_tzdatetime());
         }
         rule
+    }
+}
+
+#[derive(Default, Deserialize)]
+#[serde(transparent)]
+struct RecurrenceRules(Vec<RecurrenceRule>);
+
+impl RecurrenceRules {
+    fn validate(&self, start: &UtcDateTime) -> Result<(), RRuleError> {
+        for rule in &self.0 {
+            rule.validate(start)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl fmt::Display for RecurrenceRules {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for rule in &self.0 {
+            Into::<RRule<Unvalidated>>::into(*rule).fmt(f)?;
+            writeln!(f)?;
+        }
+        Ok(())
     }
 }
 
@@ -361,7 +399,7 @@ struct Event {
     organizer: Option<Organizer>,
     /// Should this event repeat, and if so, how?
     #[serde(default)]
-    recurrence: Vec<RecurrenceRule>,
+    recurrence: RecurrenceRules,
     /// List of dates which are exceptions to the recurrence rules.
     #[serde(default)]
     exceptions: Exceptions,
@@ -370,7 +408,6 @@ struct Event {
 impl fmt::Display for Event {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "BEGIN:VEVENT")?;
-
         self.uid.fmt(f)?;
         if let Some(created_on) = &self.created_on {
             created_on.fmt(f)?;
@@ -380,6 +417,7 @@ impl fmt::Display for Event {
         if let Some(description) = &self.description {
             description.fmt(f)?;
         }
+        self.start.fmt(f)?;
         self.end.fmt(f)?;
         if let Some(location) = &self.location {
             location.fmt(f)?;
@@ -393,21 +431,8 @@ impl fmt::Display for Event {
         if let Some(organizer) = &self.organizer {
             organizer.fmt(f)?;
         }
-
-        let start = self.start.to_tzdatetime();
-        let mut ruleset = RRuleSet::new(start);
-        for rule in &self.recurrence {
-            match Into::<RRule<Unvalidated>>::into(*rule).validate(start) {
-                Ok(rule) => {
-                    ruleset = ruleset.rrule(rule);
-                }
-                Err(e) => panic!("invalid rule! {e}"),
-            }
-        }
-        writeln!(f, "{ruleset}")?;
-
+        self.recurrence.fmt(f)?;
         self.exceptions.fmt(f)?;
-
         writeln!(f, "END:VEVENT")
     }
 }

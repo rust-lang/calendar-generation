@@ -14,6 +14,7 @@ repository = "https://github.com/davidtwco/toml-to-ical"
 
 [dependencies]
 clap = { version = "4.4.12", features = ["derive"] }
+rrule = { version = "0.11.0", features = ["exrule", "serde"] }
 thiserror = "1.0.56"
 toml = "0.8.8"
 toml-to-ical = { path = "../toml-to-ical", version = "0.1.0" }

@@ -1,4 +1,5 @@
 use clap::Parser;
+use rrule::RRuleError;
 use std::{
     ffi::OsStr,
     fs::{read_to_string, File, OpenOptions},
@@ -15,6 +16,8 @@ enum Error {
     OpenInput(#[from] IoError),
     #[error("Failed to deserialize input calendar description: {0}")]
     ParseInput(#[from] TomlError),
+    #[error("Failed to validate recurrence rule: {0}")]
+    ValidateRule(#[from] RRuleError),
     #[error("Failed to open output: {0}")]
     OpenOutput(IoError),
     #[error("Failed to write to output: {0}")]
