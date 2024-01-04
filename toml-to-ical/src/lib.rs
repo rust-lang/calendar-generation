@@ -124,6 +124,7 @@ struct LastModified(UtcDateTime);
 
 impl fmt::Display for LastModified {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "DTSTAMP:{}", self.0.to_ical_format())?;
         writeln!(f, "LAST-MODIFIED:{}", self.0.to_ical_format())
     }
 }
@@ -341,7 +342,7 @@ struct Event {
     /// Datetime that this event was created.
     created_on: Option<CreatedOn>,
     /// Datetime this event was last modified.
-    last_modified: Option<LastModified>,
+    last_modified_on: LastModified,
     /// Title or short description of this event.
     title: Title,
     /// Long description of this event.
@@ -374,9 +375,7 @@ impl fmt::Display for Event {
         if let Some(created_on) = &self.created_on {
             created_on.fmt(f)?;
         }
-        if let Some(last_modified) = &self.last_modified {
-            last_modified.fmt(f)?;
-        }
+        self.last_modified_on.fmt(f)?;
         self.title.fmt(f)?;
         if let Some(description) = &self.description {
             description.fmt(f)?;

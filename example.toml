@@ -19,7 +19,7 @@ includes = [ "example-incl.toml" ]
 uid = "1704380847852"
 # OPTIONAL: Date that this event was created. Expected RFC 3339 format.
 created_on = "2024-01-04T10:00:00.00Z"
-# OPTIONAL: Date that this event was last modified. Expected RFC 3339 format.
+# MANDATORY: Date that this event was last modified. Expected RFC 3339 format.
 last_modified_on = "2024-01-04T10:00:00.00Z"
 # MANDATORY: Title of this event.
 title = "An overview of calendar generation from TOML"
