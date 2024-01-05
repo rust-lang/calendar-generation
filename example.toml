@@ -8,6 +8,9 @@ description = "An example calendar for testing"
 # added to this calendar.
 includes = [ "example-incl.toml" ]
 
+# IMPORTANT: All datetimes are expected to be in UTC. Defining events in other timezones is not
+# currently supported.
+
 [[events]]
 # MANDATORY: Each event have a globally unique identifier (within this calendar, including events
 # from includes) - it should never be changed after the calendar has been published. Just use the
