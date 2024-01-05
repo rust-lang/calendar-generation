@@ -113,7 +113,7 @@ impl Calendar {
         let mut root = E::from_path(path)?;
         if let Some(meta) = &root.meta {
             for include in &meta.includes {
-                let mut child = E::from_path(include)?;
+                let mut child = Calendar::load::<E>(include)?;
                 root.events.extend(child.events.drain(..));
             }
         }
