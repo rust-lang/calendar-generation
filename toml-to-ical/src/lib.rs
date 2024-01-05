@@ -12,6 +12,66 @@ const NAME: &str = env!("CARGO_PKG_NAME");
 // Current version of toml-to-ical.
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// RFC 5545 §3.1 specifies that folding must occur at 75 octets.
+const FOLD_THRESHOLD_OCTETS: usize = 75;
+
+// Delete alongwith `floor_char_boundary` when appropriate.
+fn is_utf8_char_boundary(c: &u8) -> bool {
+    // This is bit magic equivalent to: b < 128 || b >= 192
+    (*c as i8) >= -0x40
+}
+
+/// Use `str::floor_char_boundary` when `round_char_boundary` feature is stable.
+fn floor_char_boundary(s: &str, index: usize) -> usize {
+    if index >= s.len() {
+        s.len()
+    } else {
+        let lower_bound = index.saturating_sub(3);
+        let new_index =
+            s.as_bytes()[lower_bound..=index].iter().rposition(|b| is_utf8_char_boundary(b));
+
+        // SAFETY: we know that the character boundary will be within four bytes
+        unsafe { lower_bound + new_index.unwrap_unchecked() }
+    }
+}
+
+/// Fold content lines according to RFC 5545 §3.1.
+fn fold(s: String) -> String {
+    if s.as_bytes().len() < FOLD_THRESHOLD_OCTETS {
+        return s;
+    }
+
+    let orig = s.as_bytes();
+    let mut ret: Vec<u8> = Vec::new();
+
+    let mut old_idx = 0;
+    let mut idx = FOLD_THRESHOLD_OCTETS;
+    loop {
+        idx = floor_char_boundary(&s, idx);
+        ret.extend_from_slice(orig.get(old_idx..idx).expect("idx greater than len"));
+
+        if idx == s.len() {
+            break;
+        }
+
+        ret.extend("\n\t".as_bytes());
+
+        old_idx = idx;
+        idx += FOLD_THRESHOLD_OCTETS;
+    }
+
+    String::from_utf8(ret).expect("invalid folding")
+}
+
+macro_rules! folded_writeln {
+    ($dst:expr $(,)?) => {
+        std::write!($dst, "\n")
+    };
+    ($dst:expr, $($arg:tt)*) => {
+        std::write!($dst, "{}\n", &$crate::fold(std::format!($($arg)*)))
+    };
+}
+
 trait DateTimeExt {
     /// Convert from a `UtcDateTime` to a `TzDateTime`.
     fn to_tzdatetime(&self) -> TzDateTime;
@@ -81,16 +141,16 @@ impl Calendar {
 
 impl fmt::Display for Calendar {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "BEGIN:VCALENDAR")?;
-        writeln!(f, "VERSION:2.0")?;
-        writeln!(f, "PRODID:-//{NAME}//toml-to-ical {VERSION}//EN")?;
-        writeln!(f, "CALSCALE:GREGORIAN")?;
-        writeln!(f, "X-WR-CALNAME:{}", self.name)?;
-        writeln!(f, "X-WR-CALDESC:{}", self.description)?;
+        folded_writeln!(f, "BEGIN:VCALENDAR")?;
+        folded_writeln!(f, "VERSION:2.0")?;
+        folded_writeln!(f, "PRODID:-//{NAME}//{VERSION}//EN")?;
+        folded_writeln!(f, "CALSCALE:GREGORIAN")?;
+        folded_writeln!(f, "X-WR-CALNAME:{}", self.name)?;
+        folded_writeln!(f, "X-WR-CALDESC:{}", self.description)?;
         for event in &self.events {
             event.fmt(f)?;
         }
-        writeln!(f, "END:VCALENDAR")
+        folded_writeln!(f, "END:VCALENDAR")
     }
 }
 
@@ -110,7 +170,7 @@ struct Uid(String);
 
 impl fmt::Display for Uid {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "UID:{}", self.0)
+        folded_writeln!(f, "UID:{}", self.0)
     }
 }
 
@@ -121,7 +181,7 @@ struct CreatedOn(UtcDateTime);
 
 impl fmt::Display for CreatedOn {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "CREATED:{}", self.0.to_ical_format())
+        folded_writeln!(f, "CREATED:{}", self.0.to_ical_format())
     }
 }
 
@@ -132,8 +192,8 @@ struct LastModified(UtcDateTime);
 
 impl fmt::Display for LastModified {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "DTSTAMP:{}", self.0.to_ical_format())?;
-        writeln!(f, "LAST-MODIFIED:{}", self.0.to_ical_format())
+        folded_writeln!(f, "DTSTAMP:{}", self.0.to_ical_format())?;
+        folded_writeln!(f, "LAST-MODIFIED:{}", self.0.to_ical_format())
     }
 }
 
@@ -144,7 +204,7 @@ struct Title(String);
 
 impl fmt::Display for Title {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "SUMMARY:{}", self.0)
+        folded_writeln!(f, "SUMMARY:{}", self.0)
     }
 }
 
@@ -155,7 +215,7 @@ struct Description(String);
 
 impl fmt::Display for Description {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "DESCRIPTION:{}", self.0)
+        folded_writeln!(f, "DESCRIPTION:{}", self.0)
     }
 }
 
@@ -166,7 +226,7 @@ struct Start(UtcDateTime);
 
 impl fmt::Display for Start {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "DTSTART:{}", self.0.to_ical_format())
+        folded_writeln!(f, "DTSTART:{}", self.0.to_ical_format())
     }
 }
 
@@ -185,7 +245,7 @@ struct End(UtcDateTime);
 
 impl fmt::Display for End {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "DTEND:{}", self.0.to_ical_format())
+        folded_writeln!(f, "DTEND:{}", self.0.to_ical_format())
     }
 }
 
@@ -196,7 +256,7 @@ struct Location(String);
 
 impl fmt::Display for Location {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "LOCATION:{}", self.0)
+        folded_writeln!(f, "LOCATION:{}", self.0)
     }
 }
 
@@ -214,7 +274,7 @@ enum Status {
 
 impl fmt::Display for Status {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(
+        folded_writeln!(
             f,
             "STATUS:{}",
             match self {
@@ -238,7 +298,7 @@ enum Transparency {
 
 impl fmt::Display for Transparency {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(
+        folded_writeln!(
             f,
             "TRANSP:{}",
             match self {
@@ -260,7 +320,7 @@ struct Organizer {
 
 impl fmt::Display for Organizer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "ORGANIZER:CN={};mailto:{}", self.name, self.email)
+        folded_writeln!(f, "ORGANIZER:CN={};mailto:{}", self.name, self.email)
     }
 }
 
@@ -366,7 +426,7 @@ impl fmt::Display for Exceptions {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if !self.0.is_empty() {
             let exception_strs: Vec<_> = self.0.iter().map(|d| d.to_ical_format()).collect();
-            writeln!(f, "EXDATE:{}", exception_strs.join(","))
+            folded_writeln!(f, "EXDATE:{}", exception_strs.join(","))
         } else {
             Ok(())
         }
@@ -407,7 +467,7 @@ struct Event {
 
 impl fmt::Display for Event {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "BEGIN:VEVENT")?;
+        folded_writeln!(f, "BEGIN:VEVENT")?;
         self.uid.fmt(f)?;
         if let Some(created_on) = &self.created_on {
             created_on.fmt(f)?;
@@ -433,6 +493,40 @@ impl fmt::Display for Event {
         }
         self.recurrence.fmt(f)?;
         self.exceptions.fmt(f)?;
-        writeln!(f, "END:VEVENT")
+        folded_writeln!(f, "END:VEVENT")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::fold;
+
+    /// Simple test of folding, check that line break and white space are inserted at 75 octets.
+    #[test]
+    fn folding_simple() {
+        assert_eq!(
+            fold("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbb".to_string()),
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\tbbbbbbbbbbbbbbbb"
+        );
+    }
+
+    /// Advanced test of folding, check that line break and white space are inserted at 75 octets in
+    /// the presence of multi-byte characters (ASCII characters 128-255).
+    #[test]
+    fn folding_multibyte_ascii_char() {
+        assert_eq!(
+            fold("ããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããêêêêêêêêêêêêêêê".to_string()),
+            "ããããããããããããããããããããããããããããããããããããã\n\tããããããããããããããããããããããããããããããããããããã\n\tããêêêêêêêêêêêêêêê"
+        );
+    }
+
+    /// Advanced test of folding, check that line break and white space are inserted at 75 octets in
+    /// the presence of multi-byte characters (2-byte characters from UTF-8).
+    #[test]
+    fn folding_multibyte_utf8_char() {
+        assert_eq!(
+            fold("ĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳŧŧŧŧŧŧŧŧŧŧŧŧŧŧŧŧ".to_string()),
+            "ĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳ\n\tĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳ\n\tĳĳŧŧŧŧŧŧŧŧŧŧŧŧŧŧŧŧ"
+        );
     }
 }
