@@ -56,6 +56,7 @@ fn fold(s: String) -> String {
 
         old_idx = idx;
         idx += FOLD_THRESHOLD_OCTETS;
+        idx -= "\n\t".len();
     }
 
     String::from_utf8(ret).expect("invalid folding")
@@ -501,7 +502,7 @@ mod tests {
     fn folding_multibyte_ascii_char() {
         assert_eq!(
             fold("ããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããêêêêêêêêêêêêêêê".to_string()),
-            "ããããããããããããããããããããããããããããããããããããã\n\tããããããããããããããããããããããããããããããããããããã\n\tããêêêêêêêêêêêêêêê"
+            "ããããããããããããããããããããããããããããããããããããã\n\tãããããããããããããããããããããããããããããããããããã\n\tãããêêêêêêêêêêêêêêê"
         );
     }
 
@@ -511,7 +512,18 @@ mod tests {
     fn folding_multibyte_utf8_char() {
         assert_eq!(
             fold("ĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳŧŧŧŧŧŧŧŧŧŧŧŧŧŧŧŧ".to_string()),
-            "ĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳ\n\tĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳ\n\tĳĳŧŧŧŧŧŧŧŧŧŧŧŧŧŧŧŧ"
+            "ĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳ\n\tĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳ\n\tĳĳĳŧŧŧŧŧŧŧŧŧŧŧŧŧŧŧŧ"
         );
+    }
+
+    /// Advanced test of folding, where length of string is an exact multiple of the 75 octet
+    /// threshold, so one fold would appear to be enough if the consider additional length added by
+    /// the newline + white space isn't considered.
+    #[test]
+    fn folding_multiple() {
+        assert_eq!(
+            fold("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyzz".to_string()),
+            "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n\tyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\n\tzz"
+        )
     }
 }
