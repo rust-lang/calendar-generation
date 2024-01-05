@@ -1,5 +1,3 @@
-use chrono::TimeZone;
-use rrule::{RRule, RRuleError, Unvalidated};
 use serde::Deserialize;
 use std::{
     fmt,
@@ -73,9 +71,6 @@ macro_rules! folded_writeln {
 }
 
 trait DateTimeExt {
-    /// Convert from a `UtcDateTime` to a `TzDateTime`.
-    fn to_tzdatetime(&self) -> TzDateTime;
-
     /// Generates an iCalendar date-time string format with the prefix symbols.
     /// e.g. `:19970714T173000Z` or `;TZID=America/New_York:19970714T133000`
     ///
@@ -84,10 +79,6 @@ trait DateTimeExt {
 }
 
 impl DateTimeExt for UtcDateTime {
-    fn to_tzdatetime(&self) -> TzDateTime {
-        rrule::Tz::UTC.from_utc_datetime(&self.naive_utc())
-    }
-
     fn to_ical_format(&self) -> String {
         self.format("%Y%m%dT%H%M%SZ").to_string()
     }
@@ -95,11 +86,9 @@ impl DateTimeExt for UtcDateTime {
 
 /// `chrono::DateTime` fixed to UTC.
 type UtcDateTime = chrono::DateTime<chrono::Utc>;
-/// `chrono::DateTime` using `rrule::Tz`.
-type TzDateTime = chrono::DateTime<rrule::Tz>;
 
 pub trait External {
-    type Error: From<RRuleError>;
+    type Error;
 
     fn from_path(path: &Path) -> Result<Calendar, Self::Error>;
 }
@@ -127,15 +116,7 @@ impl Calendar {
                 root.events.extend(child.events.drain(..));
             }
         }
-        root.validate::<E>()?;
         Ok(root)
-    }
-
-    fn validate<E: External>(&self) -> Result<(), <E as External>::Error> {
-        for event in &self.events {
-            event.recurrence.validate(&event.start)?;
-        }
-        Ok(())
     }
 }
 
@@ -344,16 +325,16 @@ enum Frequency {
     Secondly,
 }
 
-impl Into<rrule::Frequency> for Frequency {
-    fn into(self) -> rrule::Frequency {
+impl fmt::Display for Frequency {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Frequency::Yearly => rrule::Frequency::Yearly,
-            Frequency::Monthly => rrule::Frequency::Monthly,
-            Frequency::Weekly => rrule::Frequency::Weekly,
-            Frequency::Daily => rrule::Frequency::Daily,
-            Frequency::Hourly => rrule::Frequency::Hourly,
-            Frequency::Minutely => rrule::Frequency::Minutely,
-            Frequency::Secondly => rrule::Frequency::Secondly,
+            Frequency::Yearly => write!(f, "YEARLY"),
+            Frequency::Monthly => write!(f, "MONTHLY"),
+            Frequency::Weekly => write!(f, "WEEKLY"),
+            Frequency::Daily => write!(f, "DAILY"),
+            Frequency::Hourly => write!(f, "HOURLY"),
+            Frequency::Minutely => write!(f, "MINUTELY"),
+            Frequency::Secondly => write!(f, "SECONDLY"),
         }
     }
 }
@@ -372,25 +353,20 @@ struct RecurrenceRule {
     until: Option<UtcDateTime>,
 }
 
-impl RecurrenceRule {
-    fn validate(&self, start: &UtcDateTime) -> Result<(), RRuleError> {
-        Into::<RRule<Unvalidated>>::into(*self).validate(start.to_tzdatetime()).map(|_| ())
-    }
-}
-
-impl Into<RRule<Unvalidated>> for RecurrenceRule {
-    fn into(self) -> RRule<Unvalidated> {
-        let mut rule = RRule::new(self.frequency.into());
+impl fmt::Display for RecurrenceRule {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut rule = "RRULE:".to_string();
+        rule.push_str(&format!("FREQ={};", self.frequency));
         if let Some(interval) = self.interval {
-            rule = rule.interval(interval);
+            rule.push_str(&format!("INTERVAL={interval};"));
         }
         if let Some(count) = self.count {
-            rule = rule.count(count);
+            rule.push_str(&format!("COUNT={count};"));
         }
         if let Some(until) = self.until {
-            rule = rule.until(until.to_tzdatetime());
+            rule.push_str(&format!("UNTIL={};", until.to_ical_format()));
         }
-        rule
+        write!(f, "{rule}")
     }
 }
 
@@ -398,21 +374,10 @@ impl Into<RRule<Unvalidated>> for RecurrenceRule {
 #[serde(transparent)]
 struct RecurrenceRules(Vec<RecurrenceRule>);
 
-impl RecurrenceRules {
-    fn validate(&self, start: &UtcDateTime) -> Result<(), RRuleError> {
-        for rule in &self.0 {
-            rule.validate(start)?;
-        }
-
-        Ok(())
-    }
-}
-
 impl fmt::Display for RecurrenceRules {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for rule in &self.0 {
-            Into::<RRule<Unvalidated>>::into(*rule).fmt(f)?;
-            writeln!(f)?;
+            folded_writeln!(f, "{rule}")?;
         }
         Ok(())
     }
