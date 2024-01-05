@@ -1,0 +1,23 @@
+name: 'toml-to-ical'
+description: 'Generate iCalendar documents from TOML definitions'
+inputs:
+  input_directory:
+    description: 'Path to directory containing TOML calendar definitions'
+    required: true
+    default: '.'
+  output_directory:
+    description: 'Output directory'
+    required: true
+    default: 'result'
+runs:
+  using: "composite"
+  steps:
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+    - name: Build toml-to-ical
+      run: cargo install --path toml-to-ical-bin
+      shell: bash
+      working-directory: ${{ github.action_path }}
+    - name: Convert TOML calendars definitions to iCalendar documents
+      run: ${{ github.action_path }}/action.sh ${{ inputs.input_directory }} ${{ inputs.output_directory }}
+      shell: bash

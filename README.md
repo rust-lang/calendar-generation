@@ -7,6 +7,53 @@ of using Google Calendar or some other calendar service, just generate the calen
 events in TOML format and generate and host the calendar using something like GitHub Actions/Pages
 in CI.
 
+## Generate calendars with GitHub Actions
+If you have a repository containing TOML documents defining calendars, then you can create a
+GitHub Actions workflow with the following content to generate calendars available via GitHub Pages:
+
+```yaml
+name: generate calendars
+
+on:
+  push:
+    branches: ["master", "main"]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    name: generate
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Generate calendars
+        uses: davidtwco/toml-to-ical@main
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: 'result'
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2
+```
+
+You can configure the calendar generation action with the following inputs:
+
+- `input_directory`
+  - Directory containing TOML calendar definitions
+  - **default:** `.`
+- `output_directory`
+  - Directory to output iCalendar documents
+  - **default:** `result`
+
 #### Stability
 <sup>
 <code>toml-to-ical</code> has no stability guarantees.
