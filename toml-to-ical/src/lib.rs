@@ -385,6 +385,21 @@ impl fmt::Display for RecurrenceRules {
 
 #[derive(Default, Deserialize)]
 #[serde(transparent)]
+struct Recurrences(Vec<UtcDateTime>);
+
+impl fmt::Display for Recurrences {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if !self.0.is_empty() {
+            let recurrence_strs: Vec<_> = self.0.iter().map(|d| d.to_ical_format()).collect();
+            folded_writeln!(f, "RDATE:{}", recurrence_strs.join(","))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+#[derive(Default, Deserialize)]
+#[serde(transparent)]
 struct Exceptions(Vec<UtcDateTime>);
 
 impl fmt::Display for Exceptions {
@@ -422,9 +437,12 @@ struct Event {
     transparency: Option<Transparency>,
     /// Who is responsible for this event?
     organizer: Option<Organizer>,
-    /// Should this event repeat, and if so, how?
+    /// List of datetimes that this event should repeat on.
     #[serde(default)]
-    recurrence: RecurrenceRules,
+    recurrences: Recurrences,
+    /// Rules for how this event should repeat.
+    #[serde(default)]
+    recurrence_rules: RecurrenceRules,
     /// List of dates which are exceptions to the recurrence rules.
     #[serde(default)]
     exceptions: Exceptions,
@@ -456,7 +474,8 @@ impl fmt::Display for Event {
         if let Some(organizer) = &self.organizer {
             organizer.fmt(f)?;
         }
-        self.recurrence.fmt(f)?;
+        self.recurrence_rules.fmt(f)?;
+        self.recurrences.fmt(f)?;
         self.exceptions.fmt(f)?;
         folded_writeln!(f, "END:VEVENT")
     }

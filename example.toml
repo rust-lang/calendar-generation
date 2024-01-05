@@ -37,6 +37,10 @@ status = "confirmed"
 # or "transparency" (free).
 transparency = "opaque"
 
+# OPTIONAL: Dates to when this event should repeat. Must be list of strings. Expected
+# RFC 3339 format. Compatible with `recurrence_rules`. Does not appear to be supported by all
+# calendar applications (e.g. Calendar on Apple devices).
+recurrences = [ "2024-02-02T11:00:00.00Z" ]
 # OPTIONAL: Exception dates to when this event should repeat. Must be list of strings. Expected
 # RFC 3339 format.
 exceptions = [ "2024-02-01T11:00:00.00Z" ]
@@ -49,7 +53,8 @@ name = "toml-to-ical team"
 email = "..."
 
 # OPTIONAL: When this event should repeat. List of tables with the format described below.
-[[events.recurrence]]
+# Compatible with `recurrences`.
+[[events.recurrence_rules]]
 # MANDATORY: Frequency that the event should repeat on - must be one of "yearly", "monthly",
 # "weekly", "daily", "hourly", "minutely", "secondly".
 frequency = "weekly"
