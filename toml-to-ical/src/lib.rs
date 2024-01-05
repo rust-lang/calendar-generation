@@ -104,6 +104,7 @@ pub struct Calendar {
     /// Meta configuration (e.g. include other calendar descriptions).
     meta: Option<Meta>,
     /// List of events.
+    #[serde(default)]
     events: Vec<Event>,
 }
 
