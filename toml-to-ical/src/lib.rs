@@ -315,7 +315,7 @@ struct Organizer {
 
 impl fmt::Display for Organizer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        folded_writeln!(f, "ORGANIZER:CN={};mailto:{}", self.name, self.email)
+        folded_writeln!(f, "ORGANIZER;CN={}:mailto:{}", self.name, self.email)
     }
 }
 
