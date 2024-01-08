@@ -1,7 +1,7 @@
+use chrono::NaiveDate;
 use serde::Deserialize;
 use std::{
     fmt,
-    ops::Deref,
     path::{Path, PathBuf},
 };
 
@@ -82,6 +82,12 @@ trait DateTimeExt {
 impl DateTimeExt for UtcDateTime {
     fn to_ical_format(&self) -> String {
         self.format("%Y%m%dT%H%M%SZ").to_string()
+    }
+}
+
+impl DateTimeExt for NaiveDate {
+    fn to_ical_format(&self) -> String {
+        self.format("%Y%m%d").to_string()
     }
 }
 
@@ -204,31 +210,35 @@ impl fmt::Display for Description {
 
 /// Datetime that an event will start.
 #[derive(Deserialize)]
-#[serde(transparent)]
-struct Start(UtcDateTime);
+#[serde(untagged)]
+enum Start {
+    DateTime(UtcDateTime),
+    Date(NaiveDate),
+}
 
 impl fmt::Display for Start {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        folded_writeln!(f, "DTSTART:{}", self.0.to_ical_format())
-    }
-}
-
-impl Deref for Start {
-    type Target = UtcDateTime;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
+        match self {
+            Start::DateTime(t) => folded_writeln!(f, "DTSTART:{}", t.to_ical_format()),
+            Start::Date(t) => folded_writeln!(f, "DTSTART;VALUE=DATE:{}", t.to_ical_format()),
+        }
     }
 }
 
 /// Datetime that an event will end.
 #[derive(Deserialize)]
-#[serde(transparent)]
-struct End(UtcDateTime);
+#[serde(untagged)]
+enum End {
+    DateTime(UtcDateTime),
+    Date(NaiveDate),
+}
 
 impl fmt::Display for End {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        folded_writeln!(f, "DTEND:{}", self.0.to_ical_format())
+        match self {
+            End::DateTime(t) => folded_writeln!(f, "DTEND:{}", t.to_ical_format()),
+            End::Date(t) => folded_writeln!(f, "DTEND;VALUE=DATE:{}", t.to_ical_format()),
+        }
     }
 }
 
@@ -430,7 +440,7 @@ struct Event {
     /// Datetime that this event will start. Always in UTC.
     start: Start,
     /// Datetime that this event will end. Always in UTC.
-    end: End,
+    end: Option<End>,
     /// Location of this event.
     location: Option<Location>,
     /// Status of this event.
@@ -463,7 +473,9 @@ impl fmt::Display for Event {
             description.fmt(f)?;
         }
         self.start.fmt(f)?;
-        self.end.fmt(f)?;
+        if let Some(end) = &self.end {
+            end.fmt(f)?;
+        }
         if let Some(location) = &self.location {
             location.fmt(f)?;
         }

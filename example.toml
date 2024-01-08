@@ -28,9 +28,24 @@ last_modified_on = "2024-01-04T10:00:00.00Z"
 title = "An overview of calendar generation from TOML"
 # OPTIONAL: More detailed description of this event.
 description = "Learn how to use toml-to-ical"
-# MANDATORY: Start date of this event. Expected RFC 3339 format.
+# MANDATORY: Start date of this event.
+#
+# Expected RFC 3339 format. Can also be just the date component, e.g. 2024-01-04, for all-day
+# events.
+# If `start` is a date and time then `end` probably should be too, and likewise when `start` is
+# just a date then `end` should be too.
 start = "2024-01-04T11:00:00.00Z"
-# MANDATORY: End date of this event. Expected RFC 3339 format.
+# OPTIONAL: End date of this event.
+#
+# Expected RFC 3339 format. Can also be just the date component, e.g. 2024-01-04, for all-day
+# events.
+# If `start` is a date and time then `end` probably should be too, and likewise when `start` is
+# just a date then `end` should be too.
+#
+# If not provided and `start` is just a date (with no time component), then this is an all-day
+# event on the `start` date.
+# If not provided and `start` is a date and time, then this will be a event with no duration (don't
+# do this).
 end = "2024-01-04T12:00:00.00Z"
 # OPTIONAL: Location of this event.
 location = "#calendar on Zulip"
