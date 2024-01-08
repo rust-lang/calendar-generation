@@ -6,11 +6,11 @@ edition = "2021"
 authors = [ "David Wood <david.wood@huawei.com>" ]
 categories = ["command-line-utilities", "date-and-time"]
 description = "Utility for generating iCalendar files from a list of events in TOML format"
-homepage = "https://github.com/davidtwco/toml-to-ical"
+homepage = "https://github.com/rust-lang/calendar-generation"
 keywords = ["calendar"]
 license = "MIT OR Apache-2.0"
 readme = "../README.md"
-repository = "https://github.com/davidtwco/toml-to-ical"
+repository = "https://github.com/rust-lang/calendar-generation"
 
 [dependencies]
 chrono = { version = "0.4.31", features = ["serde"] }
