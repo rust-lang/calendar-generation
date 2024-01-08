@@ -1,0 +1,14 @@
+name = "Example Calendar (for incl)"
+description = "An example calendar to be included in `example.toml`"
+
+[[events]]
+uid = "1704380859531"
+last_modified_on = "2024-01-04T10:00:00.00Z"
+title = "A brief introduction to including calendars in other calendars"
+description = "Learn how to use toml-to-ical"
+start = "2024-02-15T09:00:00.00Z"
+end = "2024-02-15T12:00:00.00Z"
+location = "#calendar on Zulip"
+status = "tentative"
+organizer = { name = "toml-to-ical team", email = "..." }
+transparency = "opaque"

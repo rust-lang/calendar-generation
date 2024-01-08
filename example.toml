@@ -1,0 +1,72 @@
+# MANDATORY: Title of this calendar.
+name = "Example Calendar"
+# MANDATORY: More detailed description of this calendar.
+description = "An example calendar for testing"
+
+[meta]
+# OPTIONAL: Path to other calendar files with the same format as this file, the events of which are
+# added to this calendar.
+includes = [ "example-incl.toml" ]
+
+# IMPORTANT: All datetimes are expected to be in UTC. Defining events in other timezones is not
+# currently supported.
+
+[[events]]
+# MANDATORY: Each event have a globally unique identifier (within this calendar, including events
+# from includes) - it should never be changed after the calendar has been published. Just use the
+# current unix time or something like that to basically guarantee that you don't overlap with
+# anything or anyone else.
+# 
+# Linux: date +%s%N | cut -b1-13
+# Windows (PowerShell): [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+uid = "1704380847852"
+# OPTIONAL: Date that this event was created. Expected RFC 3339 format.
+created_on = "2024-01-04T10:00:00.00Z"
+# MANDATORY: Date that this event was last modified. Expected RFC 3339 format.
+last_modified_on = "2024-01-04T10:00:00.00Z"
+# MANDATORY: Title of this event.
+title = "An overview of calendar generation from TOML"
+# OPTIONAL: More detailed description of this event.
+description = "Learn how to use toml-to-ical"
+# MANDATORY: Start date of this event. Expected RFC 3339 format.
+start = "2024-01-04T11:00:00.00Z"
+# MANDATORY: End date of this event. Expected RFC 3339 format.
+end = "2024-01-04T12:00:00.00Z"
+# OPTIONAL: Location of this event.
+location = "#calendar on Zulip"
+# OPTIONAL: Status of this event - must be one of "tentative"/"cancelled"/"confirmed".
+status = "confirmed"
+# OPTIONAL: Whether this event mark a subscriber as busy during it - must be one of "opaque" (busy)
+# or "transparency" (free).
+transparency = "opaque"
+
+# OPTIONAL: Dates to when this event should repeat. Must be list of strings. Expected
+# RFC 3339 format. Compatible with `recurrence_rules`. Does not appear to be supported by all
+# calendar applications (e.g. Calendar on Apple devices).
+recurrences = [ "2024-02-02T11:00:00.00Z" ]
+# OPTIONAL: Exception dates to when this event should repeat. Must be list of strings. Expected
+# RFC 3339 format.
+exceptions = [ "2024-02-01T11:00:00.00Z" ]
+
+# OPTIONAL: Organizer of this event.
+[events.organizer]
+# MANDATORY: Name of the organizer.
+name = "toml-to-ical team"
+# MANDATORY: Email of the organizer.
+email = "..."
+
+# OPTIONAL: When this event should repeat. List of tables with the format described below.
+# Compatible with `recurrences`.
+[[events.recurrence_rules]]
+# MANDATORY: Frequency that the event should repeat on - must be one of "yearly", "monthly",
+# "weekly", "daily", "hourly", "minutely", "secondly".
+frequency = "weekly"
+# OPTIONAL: Number of 'frequency' between each event? e.g. "frequency = weekly" and
+# "interval = 2" is every other week.
+interval = 2
+# OPTIONAL: Number of times the event should repeat with the given frequency.
+# Mutually exclusive with `until` - not enforced, `until` will take priority.
+count = 10
+# OPTIONAL: A date that the event repetitions should stop.
+# Mutually exclusive with `count` - not enforced, `until` will take priority.
+# until = "2025-01-01T00:00:00.00Z"

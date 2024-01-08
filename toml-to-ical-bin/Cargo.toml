@@ -1,0 +1,23 @@
+[package]
+name = "toml-to-ical-bin"
+version = "0.1.0"
+edition = "2021"
+
+authors = [ "David Wood <david.wood@huawei.com>" ]
+categories = ["command-line-utilities", "date-and-time"]
+description = "Utility for generating iCalendar files from a list of events in TOML format"
+homepage = "https://github.com/rust-lang/calendar-generation"
+keywords = ["calendar"]
+license = "MIT OR Apache-2.0"
+readme = "../README.md"
+repository = "https://github.com/rust-lang/calendar-generation"
+
+[dependencies]
+clap = { version = "4.4.12", features = ["derive"] }
+thiserror = "1.0.56"
+toml = "0.8.8"
+toml-to-ical = { path = "../toml-to-ical", version = "0.1.0" }
+
+[[bin]]
+name = "toml-to-ical"
+path = "src/main.rs"

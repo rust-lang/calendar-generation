@@ -1,0 +1,6 @@
+[workspace]
+members = [
+  "toml-to-ical",
+  "toml-to-ical-bin"
+]
+resolver = "2"
