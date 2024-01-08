@@ -7,7 +7,7 @@ jobs:
     name: test
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4.1.1
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test --release --all-features
 
@@ -15,7 +15,7 @@ jobs:
     name: rustfmt
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4.1.1
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt

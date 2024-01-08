@@ -33,16 +33,16 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4.1.1
       - name: Generate calendars
         uses: davidtwco/toml-to-ical@main
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v1
+        uses: actions/upload-pages-artifact@v3.0.0
         with:
           path: 'result'
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v2
+        uses: actions/deploy-pages@v4.0.2
 ```
 
 You can configure the calendar generation action with the following inputs:
