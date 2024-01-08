@@ -35,6 +35,8 @@ fn floor_char_boundary(s: &str, index: usize) -> usize {
 
 /// Fold content lines according to RFC 5545 §3.1.
 fn fold(s: String) -> String {
+    let s = s.replace('\n', "\\n");
+
     if s.as_bytes().len() < FOLD_THRESHOLD_OCTETS {
         return s;
     }
