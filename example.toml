@@ -8,8 +8,33 @@ description = "An example calendar for testing"
 # added to this calendar.
 includes = [ "example-incl.toml" ]
 
-# IMPORTANT: All datetimes are expected to be in UTC. Defining events in other timezones is not
-# currently supported.
+# OPTIONAL: Any timezones used in events must be defined.
+[[timezones]]
+# MANDATORY: Name of the timezone.
+name = "Europe/Amsterdam"
+
+# MANDATORY: Timezone offset when daylight savings time is not in effect.
+[timezones.standard]
+# Name of this timezone.
+name = "CET"
+# When this timezone takes effect.
+start = "1970-10-25T03:00:00.00"
+# When this timezone repeats.
+# In the below example, each year on the last Sunday of October.
+rule = { frequency = "yearly", by_month = [10], by_day = [ { day = "sunday", num = -1 } ] }
+# UTC offset in use when this timezone begins.
+from = "+0200"
+# UTC offset when this timezone is in use.
+to = "+0100"
+
+# MANDATORY: Timezone offset when daylight savings time is in effect.
+# Same schema as in `timezones.standard`.
+[timezones.daylight]
+name = "CEST"
+start = "1970-03-29T02:00:00.00"
+from = "+0100"
+to = "+0200"
+rule = { frequency = "yearly", by_month = [3], by_day = [ { day = "sunday", num = -1 } ] }
 
 [[events]]
 # MANDATORY: Each event have a globally unique identifier (within this calendar, including events
@@ -28,9 +53,29 @@ last_modified_on = "2024-01-04T10:00:00.00Z"
 title = "An overview of calendar generation from TOML"
 # OPTIONAL: More detailed description of this event.
 description = "Learn how to use toml-to-ical"
-# MANDATORY: Start date of this event. Expected RFC 3339 format.
+# MANDATORY: Start date of this event.
+#
+# Expected RFC 3339 format.
+# Time component can be excluded, e.g. 2024-01-04, for all-day events.
+# Timezone can be included (must be one of the timezones defined in `timezones`):
+# e.g. `{ date = "2024-01-04T11:00:00.00", timezone = "Europe/Amsterdam" }` and
+#      `{ date = "2024-01-04", timezone = "Europe/Amsterdam" }`
+#
+# If `start` is a date and time then `end` must be too, and likewise when `start` is just a date
+# then `end` must be too.
 start = "2024-01-04T11:00:00.00Z"
-# MANDATORY: End date of this event. Expected RFC 3339 format.
+# OPTIONAL: End date of this event.
+#
+# Expected RFC 3339 format.
+# Time component can be excluded, e.g. 2024-01-04, for all-day events.
+# Timezone can be included (must be one of the timezones defined in `timezones`):
+# e.g. `{ date = "2024-01-04T11:00:00.00", timezone = "Europe/Amsterdam" }` and
+#      `{ date = "2024-01-04", timezone = "Europe/Amsterdam" }`
+#
+# If `start` is a date and time then `end` must be too, and vice versa when `start` is
+# just a date then `end` must be too.
+# If not provided and `start` is just a date (with no time component), then this is an all-day
+# event on the `start` date. Must be provided if `start` is a date and time.
 end = "2024-01-04T12:00:00.00Z"
 # OPTIONAL: Location of this event.
 location = "#calendar on Zulip"
@@ -64,9 +109,40 @@ frequency = "weekly"
 # OPTIONAL: Number of 'frequency' between each event? e.g. "frequency = weekly" and
 # "interval = 2" is every other week.
 interval = 2
-# OPTIONAL: Number of times the event should repeat with the given frequency.
-# Mutually exclusive with `until` - not enforced, `until` will take priority.
+# OPTIONAL: Number of times the event should repeat with the given frequency. Mutually exclusive
+# with `until`.
 count = 10
-# OPTIONAL: A date that the event repetitions should stop.
-# Mutually exclusive with `count` - not enforced, `until` will take priority.
+# OPTIONAL: A date that the event repetitions should stop. Mutually exclusive with `count`.
 # until = "2025-01-01T00:00:00.00Z"
+# OPTIONAL: Seconds on which the event will recur. Must be between 0 and 60.
+# In the below example, this is at the 0th second of the minute and the 30th second of the minute.
+# by_second = [ 0, 30 ]
+# OPTIONAL: Minutes on which the event will recur. Must be between 0 and 59.
+# In the below example, this is at the 15th minute of the hour and the 45th minute of the hour.
+# by_minute = [ 15, 45 ]
+# OPTIONAL: Hours on which the event will recur. Must be between 0 and 23.
+# In the below example, this is at 3pm and 4pm.
+# by_hour = [ 15, 16 ]
+# OPTIONAL: Days of the week on which the event will recur.
+# `num` must be between -53 and 53 (excl. 0) and `day` must be one of "monday", "tuesday",
+# "wednesday", "thursday", "friday", "saturday", "sunday".
+# In the below example, this is on the first Sunday and on the second-to-last Tuesday.
+# by_day = [ { day = "sunday", num = 1 }, { day = "tuesday", num = -2 } ]
+# OPTIONAL: Days of the month on which the event will recur. Must be between -31 and 31 (excl. 0).
+# In the below example, this is on the fifth day of the month and the fifth-from-last day of the
+# month.
+# by_month_day = [ 5, -5 ]
+# OPTIONAL: Days of the year on which the event will recur. Must be between -366 and 366 (excl. 0).
+# In the below example, this is on the 100th day of the year and the 200th-from-last day of the
+# year.
+# by_year_day = [ 100, -200 ]
+# OPTIONAL: Weeks of the year on which the event will recur. Must be between 1 and 52.
+# In the below example, this is on the 12th week of the year and the 34th-from-last week of the
+# year.
+# by_week_no = [ 12, 34 ]
+# OPTIONAL: Months of the year on which the event will recur. Must be between 1 and 12.
+# In the below example, this is on the 2nd month of the year and the 4th month of the year.
+# by_month = [ 2, 4 ]
+# OPTIONAL: Day that will be considered start of the week. Must be one of "monday", "tuesday",
+# "wednesday", "thursday", "friday", "saturday", "sunday".
+# week_start = "monday"

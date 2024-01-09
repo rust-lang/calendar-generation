@@ -15,3 +15,7 @@ repository = "https://github.com/rust-lang/calendar-generation"
 [dependencies]
 chrono = { version = "0.4.31", features = ["serde"] }
 serde = { version = "1.0.194", features = ["derive"] }
+thiserror = "1.0.56"
+
+[dev-dependencies]
+toml = "0.8.8"
