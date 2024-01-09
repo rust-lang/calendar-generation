@@ -526,10 +526,10 @@ impl fmt::Display for Start {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Start::DateTimeWithTz { date, timezone } => {
-                folded_writeln!(f, "DTSTART;TZ={timezone}:{}", date.to_ical_format())
+                folded_writeln!(f, "DTSTART;TZID={timezone}:{}", date.to_ical_format())
             }
             Start::DateWithTz { date, timezone } => {
-                folded_writeln!(f, "DTSTART;TZ={timezone};VALUE=DATE:{}", date.to_ical_format())
+                folded_writeln!(f, "DTSTART;TZID={timezone};VALUE=DATE:{}", date.to_ical_format())
             }
             Start::DateTime(date) => folded_writeln!(f, "DTSTART:{}", date.to_ical_format()),
             Start::Date(date) => folded_writeln!(f, "DTSTART;VALUE=DATE:{}", date.to_ical_format()),
@@ -557,10 +557,10 @@ impl fmt::Display for End {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             End::DateTimeWithTz { date, timezone } => {
-                folded_writeln!(f, "DTEND;TZ={timezone}:{}", date.to_ical_format())
+                folded_writeln!(f, "DTEND;TZID={timezone}:{}", date.to_ical_format())
             }
             End::DateWithTz { date, timezone } => {
-                folded_writeln!(f, "DTEND;TZ={timezone};VALUE=DATE:{}", date.to_ical_format())
+                folded_writeln!(f, "DTEND;TZID={timezone};VALUE=DATE:{}", date.to_ical_format())
             }
             End::DateTime(t) => folded_writeln!(f, "DTEND:{}", t.to_ical_format()),
             End::Date(t) => folded_writeln!(f, "DTEND;VALUE=DATE:{}", t.to_ical_format()),
