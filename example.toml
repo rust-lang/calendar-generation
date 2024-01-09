@@ -32,20 +32,17 @@ description = "Learn how to use toml-to-ical"
 #
 # Expected RFC 3339 format. Can also be just the date component, e.g. 2024-01-04, for all-day
 # events.
-# If `start` is a date and time then `end` probably should be too, and likewise when `start` is
-# just a date then `end` should be too.
+# If `start` is a date and time then `end` must be too, and likewise when `start` is just a date
+# then `end` must be too.
 start = "2024-01-04T11:00:00.00Z"
 # OPTIONAL: End date of this event.
 #
 # Expected RFC 3339 format. Can also be just the date component, e.g. 2024-01-04, for all-day
 # events.
-# If `start` is a date and time then `end` probably should be too, and likewise when `start` is
-# just a date then `end` should be too.
-#
+# If `start` is a date and time then `end` must be too, and vice versa when `start` is
+# just a date then `end` must be too.
 # If not provided and `start` is just a date (with no time component), then this is an all-day
-# event on the `start` date.
-# If not provided and `start` is a date and time, then this will be a event with no duration (don't
-# do this).
+# event on the `start` date. Must be provided if `start` is a date and time.
 end = "2024-01-04T12:00:00.00Z"
 # OPTIONAL: Location of this event.
 location = "#calendar on Zulip"
@@ -79,9 +76,8 @@ frequency = "weekly"
 # OPTIONAL: Number of 'frequency' between each event? e.g. "frequency = weekly" and
 # "interval = 2" is every other week.
 interval = 2
-# OPTIONAL: Number of times the event should repeat with the given frequency.
-# Mutually exclusive with `until` - not enforced, `until` will take priority.
+# OPTIONAL: Number of times the event should repeat with the given frequency. Mutually exclusive
+# with `until`.
 count = 10
-# OPTIONAL: A date that the event repetitions should stop.
-# Mutually exclusive with `count` - not enforced, `until` will take priority.
+# OPTIONAL: A date that the event repetitions should stop. Mutually exclusive with `count`.
 # until = "2025-01-01T00:00:00.00Z"

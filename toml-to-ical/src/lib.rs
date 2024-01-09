@@ -1,9 +1,11 @@
 use chrono::NaiveDate;
 use serde::Deserialize;
 use std::{
+    collections::HashSet,
     fmt,
     path::{Path, PathBuf},
 };
+use thiserror::Error;
 
 // Current name of toml-to-ical.
 const NAME: &str = env!("CARGO_PKG_NAME");
@@ -102,8 +104,20 @@ pub trait External {
     fn from_path(path: &Path) -> Result<Calendar, Self::Error>;
 }
 
+#[derive(Debug, Error, Eq, PartialEq)]
+pub enum ValidationError {
+    #[error("Event {0} has duplicate `uid`")]
+    DuplicateUid(String),
+    #[error("Event {0} has no duration (`start` is a datetime and `end` is absent)")]
+    ZeroDurationEvent(String),
+    #[error("Event {0} has different types for `start` and `end`")]
+    MismatchedDateTypes(String),
+    #[error("Event {0} has recurrence rule which sets mutually exclusive `until` and `count`")]
+    RecurrenceCountUntilMutuallyExclusive(String),
+}
+
 /// A calendar.
-#[derive(Deserialize)]
+#[derive(Default, Deserialize)]
 pub struct Calendar {
     /// Name of the calendar.
     name: String,
@@ -128,6 +142,37 @@ impl Calendar {
         }
         Ok(root)
     }
+
+    pub fn validate(&self) -> Result<(), ValidationError> {
+        let mut seen_uids = HashSet::new();
+        for event in &self.events {
+            if !seen_uids.insert(&event.uid) {
+                return Err(ValidationError::DuplicateUid(event.uid.0.clone()));
+            }
+
+            if matches!(event.start, Start::DateTime(_)) && event.end.is_none() {
+                return Err(ValidationError::ZeroDurationEvent(event.uid.0.clone()));
+            }
+
+            if (matches!(event.start, Start::DateTime(_))
+                && matches!(event.end, Some(End::Date(_))))
+                || (matches!(event.start, Start::Date(_))
+                    && matches!(event.end, Some(End::DateTime(_))))
+            {
+                return Err(ValidationError::MismatchedDateTypes(event.uid.0.clone()));
+            }
+
+            for rule in &event.recurrence_rules.0 {
+                if rule.until.is_some() && rule.count.is_some() {
+                    return Err(ValidationError::RecurrenceCountUntilMutuallyExclusive(
+                        event.uid.0.clone(),
+                    ));
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl fmt::Display for Calendar {
@@ -147,7 +192,7 @@ impl fmt::Display for Calendar {
 
 /// Meta configuration.
 /// e.g. include other calendar descriptions.
-#[derive(Deserialize)]
+#[derive(Default, Deserialize)]
 struct Meta {
     /// Other calendar TOML files that events should be included from.
     #[serde(default)]
@@ -155,7 +200,7 @@ struct Meta {
 }
 
 /// Datetime that an event was created.
-#[derive(Deserialize)]
+#[derive(Default, Deserialize, Eq, Hash, PartialEq)]
 #[serde(transparent)]
 struct Uid(String);
 
@@ -166,7 +211,7 @@ impl fmt::Display for Uid {
 }
 
 /// Datetime that an event was created.
-#[derive(Deserialize)]
+#[derive(Default, Deserialize)]
 #[serde(transparent)]
 struct CreatedOn(UtcDateTime);
 
@@ -177,7 +222,7 @@ impl fmt::Display for CreatedOn {
 }
 
 /// Datetime that an event was last modified.
-#[derive(Deserialize)]
+#[derive(Default, Deserialize)]
 #[serde(transparent)]
 struct LastModified(UtcDateTime);
 
@@ -189,7 +234,7 @@ impl fmt::Display for LastModified {
 }
 
 /// Title or short description of an event.
-#[derive(Deserialize)]
+#[derive(Default, Deserialize)]
 #[serde(transparent)]
 struct Title(String);
 
@@ -200,7 +245,7 @@ impl fmt::Display for Title {
 }
 
 /// Long description of an event.
-#[derive(Deserialize)]
+#[derive(Default, Deserialize)]
 #[serde(transparent)]
 struct Description(String);
 
@@ -216,6 +261,12 @@ impl fmt::Display for Description {
 enum Start {
     DateTime(UtcDateTime),
     Date(NaiveDate),
+}
+
+impl Default for Start {
+    fn default() -> Self {
+        Start::DateTime(Default::default())
+    }
 }
 
 impl fmt::Display for Start {
@@ -235,6 +286,12 @@ enum End {
     Date(NaiveDate),
 }
 
+impl Default for End {
+    fn default() -> Self {
+        End::DateTime(Default::default())
+    }
+}
+
 impl fmt::Display for End {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -245,7 +302,7 @@ impl fmt::Display for End {
 }
 
 /// Location of an event.
-#[derive(Deserialize)]
+#[derive(Default, Deserialize)]
 #[serde(transparent)]
 struct Location(String);
 
@@ -256,12 +313,13 @@ impl fmt::Display for Location {
 }
 
 /// Status of the event.
-#[derive(Deserialize)]
+#[derive(Default, Deserialize)]
 #[serde(rename_all = "lowercase")]
 enum Status {
     /// Event is not confirmed to be happening yet.
     Tentative,
     /// Event is confirmed to be happening.
+    #[default]
     Confirmed,
     /// Event has been cancelled.
     Cancelled,
@@ -282,10 +340,11 @@ impl fmt::Display for Status {
 }
 
 /// Is a subscriber as free or busy during the event?
-#[derive(Deserialize)]
+#[derive(Default, Deserialize)]
 #[serde(rename_all = "lowercase")]
 enum Transparency {
     // Subscriber is considered busy during the event.
+    #[default]
     Opaque,
     // Subscriber is not considered busy during the event.
     Transparent,
@@ -305,7 +364,7 @@ impl fmt::Display for Transparency {
 }
 
 /// Organizer of an event.
-#[derive(Deserialize)]
+#[derive(Default, Deserialize)]
 struct Organizer {
     /// Name of event organiser.
     name: String,
@@ -320,7 +379,7 @@ impl fmt::Display for Organizer {
 }
 
 /// Unit of time that recurrence happens on.
-#[derive(Clone, Copy, Deserialize)]
+#[derive(Clone, Copy, Default, Deserialize)]
 #[serde(rename_all = "lowercase")]
 enum Frequency {
     /// Every year.
@@ -328,6 +387,7 @@ enum Frequency {
     /// Every month.
     Monthly,
     /// Every week.
+    #[default]
     Weekly,
     /// Every daily.
     Daily,
@@ -353,7 +413,7 @@ impl fmt::Display for Frequency {
     }
 }
 
-#[derive(Clone, Copy, Deserialize)]
+#[derive(Clone, Copy, Default, Deserialize)]
 struct RecurrenceRule {
     /// Unit of time that recurrence happens on.
     /// e.g. daily, weekly, monthly.
@@ -427,7 +487,7 @@ impl fmt::Display for Exceptions {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Default, Deserialize)]
 struct Event {
     /// Globally unique identifier for this event.
     uid: Uid,
@@ -499,7 +559,9 @@ impl fmt::Display for Event {
 
 #[cfg(test)]
 mod tests {
-    use super::fold;
+    use super::{
+        fold, Calendar, End, Event, RecurrenceRule, RecurrenceRules, Start, Uid, ValidationError,
+    };
 
     /// Simple test of folding, check that line break and white space are inserted at 75 octets.
     #[test]
@@ -539,5 +601,82 @@ mod tests {
             fold("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyzz".to_string()),
             "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n\tyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\n\tzz"
         )
+    }
+
+    // Check that duplicate UIDs are rejected.
+    #[test]
+    fn validation_duplicate_uid() {
+        let cal = Calendar {
+            events: vec![
+                Event {
+                    uid: Uid("1".to_string()),
+                    end: Some(Default::default()),
+                    ..Default::default()
+                },
+                Event { uid: Uid("1".to_string()), ..Default::default() },
+            ],
+            ..Default::default()
+        };
+        assert_eq!(cal.validate().unwrap_err(), ValidationError::DuplicateUid("1".to_string()));
+    }
+
+    // Check that a zero duration event is rejected.
+    #[test]
+    fn validation_zero_duration_event() {
+        // Only need to use `Default::default` here because that will produce a default date for
+        // `start` and a `None` for `end`.
+        let cal = Calendar { events: vec![Event { ..Default::default() }], ..Default::default() };
+        assert_eq!(cal.validate().unwrap_err(), ValidationError::ZeroDurationEvent("".to_string()));
+    }
+
+    // Check that mismatched start/end types are rejected.
+    #[test]
+    fn validation_mismatched_start_end_types() {
+        let cal = Calendar {
+            events: vec![Event {
+                start: Start::DateTime(Default::default()),
+                end: Some(End::Date(Default::default())),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        assert_eq!(
+            cal.validate().unwrap_err(),
+            ValidationError::MismatchedDateTypes("".to_string())
+        );
+
+        let cal = Calendar {
+            events: vec![Event {
+                start: Start::Date(Default::default()),
+                end: Some(End::DateTime(Default::default())),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        assert_eq!(
+            cal.validate().unwrap_err(),
+            ValidationError::MismatchedDateTypes("".to_string())
+        );
+    }
+
+    // Check that mutually exclusive fields in recurrence rules are rejected.
+    #[test]
+    fn validation_mutually_exclusive_count_until() {
+        let cal = Calendar {
+            events: vec![Event {
+                end: Some(Default::default()),
+                recurrence_rules: RecurrenceRules(vec![RecurrenceRule {
+                    count: Some(2),
+                    until: Some(Default::default()),
+                    ..Default::default()
+                }]),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        assert_eq!(
+            cal.validate().unwrap_err(),
+            ValidationError::RecurrenceCountUntilMutuallyExclusive("".to_string())
+        );
     }
 }

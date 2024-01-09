@@ -7,7 +7,7 @@ use std::{
 };
 use thiserror::Error;
 use toml::{de::Error as TomlError, from_str};
-use toml_to_ical::{Calendar, External};
+use toml_to_ical::{Calendar, External, ValidationError};
 
 #[derive(Debug, Error)]
 enum Error {
@@ -15,6 +15,8 @@ enum Error {
     OpenInput(#[from] IoError),
     #[error("Failed to deserialize input calendar description: {0}")]
     ParseInput(#[from] TomlError),
+    #[error("Failed to validate calendar description: {0}")]
+    Validation(#[from] ValidationError),
     #[error("Failed to open output: {0}")]
     OpenOutput(IoError),
     #[error("Failed to write to output: {0}")]
@@ -101,6 +103,7 @@ fn main() -> Result<(), Error> {
     let opts = Opt::parse();
 
     let calendar = Calendar::load::<Session>(&opts.input)?;
+    calendar.validate()?;
 
     let mut output = if let Some(output) = opts.output {
         Output::new(output.as_os_str())
