@@ -126,6 +126,12 @@ pub enum ValidationError {
     MismatchedDateTypes(String),
     #[error("Event {0} has recurrence rule which sets mutually exclusive `until` and `count`")]
     CountUntilMutuallyExclusive(String),
+    #[error("Event {0} does not exist but a specific recurrence is requested")]
+    RecurrenceDoesNotExist(String),
+    #[error("Recurrence of event {0} has recurrences or recurrence rules")]
+    RecurrenceCannotHaveRecurrenceRules(String),
+    #[error("`recurrence_id` of event {0} has different date type than `start` of original event")]
+    MismatchedRecurrenceDateTypes(String),
     #[error("Event {0} has recurrence rule with `by_second` out of range [0, 60]")]
     BySecondOutOfRange(String),
     #[error("Event {0} has recurrence rule with `by_minute` out of range [0, 59]")]
@@ -181,7 +187,7 @@ impl Calendar {
         let mut seen_uids = HashSet::new();
         for event in &self.events {
             let uid = event.uid.0.clone();
-            if !seen_uids.insert(&event.uid) {
+            if event.recurrence_id.is_none() && !seen_uids.insert(&event.uid) {
                 return Err(ValidationError::DuplicateUid(uid));
             }
 
@@ -189,12 +195,26 @@ impl Calendar {
                 return Err(ValidationError::ZeroDurationEvent(uid));
             }
 
-            if (matches!(event.start, Start::DateTime(_))
-                && matches!(event.end, Some(End::Date(_))))
-                || (matches!(event.start, Start::Date(_))
-                    && matches!(event.end, Some(End::DateTime(_))))
-            {
-                return Err(ValidationError::MismatchedDateTypes(uid));
+            if let Some(end) = &event.end {
+                if event.start.is_date() != end.is_date() || event.start.has_tz() != end.has_tz() {
+                    return Err(ValidationError::MismatchedDateTypes(uid));
+                }
+            }
+
+            if let Some(recurrence_id) = &event.recurrence_id {
+                if !seen_uids.contains(&event.uid) {
+                    return Err(ValidationError::RecurrenceDoesNotExist(uid));
+                }
+
+                if !event.recurrence_rules.0.is_empty() || !event.recurrences.0.is_empty() {
+                    return Err(ValidationError::RecurrenceCannotHaveRecurrenceRules(uid));
+                }
+
+                if event.start.is_date() != recurrence_id.is_date()
+                    || event.start.tz() != recurrence_id.tz()
+                {
+                    return Err(ValidationError::MismatchedRecurrenceDateTypes(uid));
+                }
             }
 
             for rule in &event.recurrence_rules.0 {
@@ -506,6 +526,20 @@ impl fmt::Display for Description {
     }
 }
 
+trait DateProperty {
+    fn is_date(&self) -> bool;
+
+    fn is_datetime(&self) -> bool {
+        !self.is_date()
+    }
+
+    fn tz(&self) -> Option<&str>;
+
+    fn has_tz(&self) -> bool {
+        self.tz().is_some()
+    }
+}
+
 /// Datetime that an event will start.
 #[derive(Deserialize)]
 #[serde(untagged)]
@@ -514,6 +548,24 @@ enum Start {
     DateWithTz { date: NaiveDate, timezone: String },
     DateTime(UtcDateTime),
     Date(NaiveDate),
+}
+
+impl DateProperty for Start {
+    fn is_date(&self) -> bool {
+        match *self {
+            Start::DateTimeWithTz { .. } | Start::DateTime(_) => false,
+            Start::DateWithTz { .. } | Start::Date(_) => true,
+        }
+    }
+
+    fn tz(&self) -> Option<&str> {
+        match self {
+            Start::DateTimeWithTz { timezone, .. } | Start::DateWithTz { timezone, .. } => {
+                Some(timezone.as_str())
+            }
+            Start::DateTime(_) | Start::Date(_) => None,
+        }
+    }
 }
 
 impl Default for Start {
@@ -545,6 +597,24 @@ enum End {
     DateWithTz { date: NaiveDate, timezone: String },
     DateTime(UtcDateTime),
     Date(NaiveDate),
+}
+
+impl DateProperty for End {
+    fn is_date(&self) -> bool {
+        match *self {
+            End::DateTimeWithTz { .. } | End::DateTime(_) => false,
+            End::DateWithTz { .. } | End::Date(_) => true,
+        }
+    }
+
+    fn tz(&self) -> Option<&str> {
+        match self {
+            End::DateTimeWithTz { timezone, .. } | End::DateWithTz { timezone, .. } => {
+                Some(timezone.as_str())
+            }
+            End::DateTime(_) | End::Date(_) => None,
+        }
+    }
 }
 
 impl Default for End {
@@ -986,6 +1056,62 @@ impl fmt::Display for Exceptions {
     }
 }
 
+/// Identify a specific recurrence by specifying the datetime of that recurrence.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum RecurrenceId {
+    DateTimeWithTz { date: NaiveDateTime, timezone: String },
+    DateWithTz { date: NaiveDate, timezone: String },
+    DateTime(UtcDateTime),
+    Date(NaiveDate),
+}
+
+impl DateProperty for RecurrenceId {
+    fn is_date(&self) -> bool {
+        match *self {
+            RecurrenceId::DateTimeWithTz { .. } | RecurrenceId::DateTime(_) => false,
+            RecurrenceId::DateWithTz { .. } | RecurrenceId::Date(_) => true,
+        }
+    }
+
+    fn tz(&self) -> Option<&str> {
+        match self {
+            RecurrenceId::DateTimeWithTz { timezone, .. }
+            | RecurrenceId::DateWithTz { timezone, .. } => Some(timezone.as_str()),
+            RecurrenceId::DateTime(_) | RecurrenceId::Date(_) => None,
+        }
+    }
+}
+
+impl Default for RecurrenceId {
+    fn default() -> Self {
+        RecurrenceId::DateTime(Default::default())
+    }
+}
+
+impl fmt::Display for RecurrenceId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RecurrenceId::DateTimeWithTz { date, timezone } => {
+                folded_writeln!(f, "RECURRENCE-ID;TZID={timezone}:{}", date.to_ical_format())
+            }
+            RecurrenceId::DateWithTz { date, timezone } => {
+                folded_writeln!(
+                    f,
+                    "RECURRENCE-ID;TZID={timezone};VALUE=DATE:{}",
+                    date.to_ical_format()
+                )
+            }
+            RecurrenceId::DateTime(date) => {
+                folded_writeln!(f, "RECURRENCE-ID:{}", date.to_ical_format())
+            }
+            RecurrenceId::Date(date) => {
+                folded_writeln!(f, "RECURRENCE-ID;VALUE=DATE:{}", date.to_ical_format())
+            }
+        }
+    }
+}
+
 #[derive(Default, Deserialize)]
 struct Event {
     /// Globally unique identifier for this event.
@@ -1019,6 +1145,8 @@ struct Event {
     /// List of dates which are exceptions to the recurrence rules.
     #[serde(default)]
     exceptions: Exceptions,
+    /// Identify a specific recurrence by specifying the datetime of that recurrence.
+    recurrence_id: Option<RecurrenceId>,
 }
 
 impl fmt::Display for Event {
@@ -1052,6 +1180,9 @@ impl fmt::Display for Event {
         self.recurrence_rules.fmt(f)?;
         self.recurrences.fmt(f)?;
         self.exceptions.fmt(f)?;
+        if let Some(recurrence_id) = &self.recurrence_id {
+            recurrence_id.fmt(f)?;
+        }
         folded_writeln!(f, "END:VEVENT")
     }
 }
