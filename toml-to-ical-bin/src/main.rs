@@ -99,7 +99,7 @@ impl io::Write for Output {
     }
 }
 
-fn main() -> Result<(), Error> {
+fn generate() -> Result<(), Error> {
     let opts = Opt::parse();
 
     let calendar = Calendar::load::<Session>(&opts.input)?;
@@ -114,4 +114,11 @@ fn main() -> Result<(), Error> {
     write!(output, "{calendar}").map_err(Error::WriteOutput)?;
 
     Ok(())
+}
+
+fn main() {
+    if let Err(e) = generate() {
+        eprintln!("{e}");
+        std::process::exit(1);
+    }
 }
