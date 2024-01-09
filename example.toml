@@ -93,6 +93,22 @@ recurrences = [ "2024-02-02T11:00:00.00Z" ]
 # RFC 3339 format.
 exceptions = [ "2024-02-01T11:00:00.00Z" ]
 
+# OPTIONAL: Identify a specific recurrence of an event. This must be a date/datetime that
+# matches one of the recurrences of the primary event (which should have the same `uid` as this
+# event). If you want to change the start date of the event, then change the `start` field, this
+# field must match the original reccurence date. To change the details of this recurrence, change
+# any of the other fields.
+#
+# Expected RFC 3339 format.
+# Time component can be excluded, e.g. 2024-01-04, for all-day events.
+# Timezone can be included (must be one of the timezones defined in `timezones`):
+# e.g. `{ date = "2024-01-04T11:00:00.00", timezone = "Europe/Amsterdam" }` and
+#      `{ date = "2024-01-04", timezone = "Europe/Amsterdam" }`
+#
+# If `start` is a date and time then `recurrence_id` must be too, and likewise when `start` is just
+# a date then `recurrence_id` must be too. `start` and `recurrence_id` must be in the same timezone.
+# recurrence_id = "2024-01-18T11:00:00.00Z"
+
 # OPTIONAL: Organizer of this event.
 [events.organizer]
 # MANDATORY: Name of the organizer.

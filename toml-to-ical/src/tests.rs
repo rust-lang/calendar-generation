@@ -2,7 +2,7 @@ use serde::Deserialize;
 
 use crate::{
     fold, ByDay, ByHour, ByMinute, ByMonth, ByMonthDay, BySecond, ByWeekNo, ByYearDay, Calendar,
-    Count, End, Event, RecurrenceRule, RecurrenceRules, Start, TimezoneOffset, Uid,
+    Count, End, Event, RecurrenceId, RecurrenceRule, RecurrenceRules, Start, TimezoneOffset, Uid,
     ValidationError, Weekday, WeekdayNum,
 };
 
@@ -346,4 +346,122 @@ fn parse_tz_offset() {
     // Invalid, wrong length
     assert!(toml::from_str::<Harness>("offset = \"+450000\"").is_err());
     assert!(toml::from_str::<Harness>("offset = \"-10\"").is_err());
+}
+
+// Check that recurrences must refer to events that exist.
+#[test]
+fn validation_recurrence_does_not_exist() {
+    let cal = Calendar {
+        events: vec![Event {
+            end: Some(Default::default()),
+            recurrence_id: Some(Default::default()),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    assert_eq!(
+        cal.validate().unwrap_err(),
+        ValidationError::RecurrenceDoesNotExist("".to_string())
+    );
+}
+
+// Check that specific recurrences do not themselves have recurrence rules.
+#[test]
+fn validation_recurrence_cannot_have_rules() {
+    let cal = Calendar {
+        events: vec![
+            Event {
+                end: Some(Default::default()),
+                recurrence_rules: RecurrenceRules(vec![Default::default()]),
+                ..Default::default()
+            },
+            Event {
+                end: Some(Default::default()),
+                recurrence_id: Some(Default::default()),
+                recurrence_rules: RecurrenceRules(vec![Default::default()]),
+                ..Default::default()
+            },
+        ],
+        ..Default::default()
+    };
+    assert_eq!(
+        cal.validate().unwrap_err(),
+        ValidationError::RecurrenceCannotHaveRecurrenceRules("".to_string())
+    );
+}
+
+// Check that mismatched start/recurrence_id types are rejected.
+#[test]
+fn validation_mismatched_start_recurrence_id_types() {
+    let cal = Calendar {
+        events: vec![
+            Event {
+                end: Some(Default::default()),
+                recurrence_rules: RecurrenceRules(vec![Default::default()]),
+                ..Default::default()
+            },
+            Event {
+                start: Start::DateTime(Default::default()),
+                end: Some(End::DateTime(Default::default())),
+                recurrence_id: Some(RecurrenceId::Date(Default::default())),
+                ..Default::default()
+            },
+        ],
+        ..Default::default()
+    };
+    assert_eq!(
+        cal.validate().unwrap_err(),
+        ValidationError::MismatchedRecurrenceDateTypes("".to_string())
+    );
+
+    let cal = Calendar {
+        events: vec![
+            Event {
+                end: Some(Default::default()),
+                recurrence_rules: RecurrenceRules(vec![Default::default()]),
+                ..Default::default()
+            },
+            Event {
+                start: Start::Date(Default::default()),
+                end: Some(End::Date(Default::default())),
+                recurrence_id: Some(RecurrenceId::DateTime(Default::default())),
+                ..Default::default()
+            },
+        ],
+        ..Default::default()
+    };
+    assert_eq!(
+        cal.validate().unwrap_err(),
+        ValidationError::MismatchedRecurrenceDateTypes("".to_string())
+    );
+
+    let cal = Calendar {
+        events: vec![
+            Event {
+                end: Some(Default::default()),
+                recurrence_rules: RecurrenceRules(vec![Default::default()]),
+                ..Default::default()
+            },
+            Event {
+                start: Start::DateTimeWithTz {
+                    date: Default::default(),
+                    timezone: "Foo".to_string(),
+                },
+                end: Some(End::DateTimeWithTz {
+                    date: Default::default(),
+                    timezone: "Foo".to_string(),
+                }),
+                recurrence_id: Some(RecurrenceId::DateTimeWithTz {
+                    date: Default::default(),
+                    timezone: "Bar".to_string(),
+                }),
+                ..Default::default()
+            },
+        ],
+        ..Default::default()
+    };
+    assert_eq!(
+        cal.validate().unwrap_err(),
+        ValidationError::MismatchedRecurrenceDateTypes("".to_string())
+    );
 }
