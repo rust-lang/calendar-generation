@@ -7,6 +7,9 @@ use std::{
 };
 use thiserror::Error;
 
+#[cfg(test)]
+mod tests;
+
 // Current name of toml-to-ical.
 const NAME: &str = env!("CARGO_PKG_NAME");
 // Current version of toml-to-ical.
@@ -113,7 +116,23 @@ pub enum ValidationError {
     #[error("Event {0} has different types for `start` and `end`")]
     MismatchedDateTypes(String),
     #[error("Event {0} has recurrence rule which sets mutually exclusive `until` and `count`")]
-    RecurrenceCountUntilMutuallyExclusive(String),
+    CountUntilMutuallyExclusive(String),
+    #[error("Event {0} has recurrence rule with `by_second` out of range [0, 60]")]
+    BySecondOutOfRange(String),
+    #[error("Event {0} has recurrence rule with `by_minute` out of range [0, 59]")]
+    ByMinuteOutOfRange(String),
+    #[error("Event {0} has recurrence rule with `by_hour` out of range [0, 23]")]
+    ByHourOutOfRange(String),
+    #[error("Event {0} has recurrence rule with `by_day` out of range [0, 52]")]
+    ByDayOutOfRange(String),
+    #[error("Event {0} has recurrence rule with `by_month_day` out of range [0, 31]")]
+    ByMonthDayOutOfRange(String),
+    #[error("Event {0} has recurrence rule with `by_year_day` out of range [0, 365]")]
+    ByYearDayOutOfRange(String),
+    #[error("Event {0} has recurrence rule with `by_week_no` out of range [0, 52]")]
+    ByWeekNoOutOfRange(String),
+    #[error("Event {0} has recurrence rule with `by_month_no` out of range [0, 12]")]
+    ByMonthOutOfRange(String),
 }
 
 /// A calendar.
@@ -146,12 +165,13 @@ impl Calendar {
     pub fn validate(&self) -> Result<(), ValidationError> {
         let mut seen_uids = HashSet::new();
         for event in &self.events {
+            let uid = event.uid.0.clone();
             if !seen_uids.insert(&event.uid) {
-                return Err(ValidationError::DuplicateUid(event.uid.0.clone()));
+                return Err(ValidationError::DuplicateUid(uid));
             }
 
             if matches!(event.start, Start::DateTime(_)) && event.end.is_none() {
-                return Err(ValidationError::ZeroDurationEvent(event.uid.0.clone()));
+                return Err(ValidationError::ZeroDurationEvent(uid));
             }
 
             if (matches!(event.start, Start::DateTime(_))
@@ -159,14 +179,60 @@ impl Calendar {
                 || (matches!(event.start, Start::Date(_))
                     && matches!(event.end, Some(End::DateTime(_))))
             {
-                return Err(ValidationError::MismatchedDateTypes(event.uid.0.clone()));
+                return Err(ValidationError::MismatchedDateTypes(uid));
             }
 
             for rule in &event.recurrence_rules.0 {
                 if rule.until.is_some() && rule.count.is_some() {
-                    return Err(ValidationError::RecurrenceCountUntilMutuallyExclusive(
-                        event.uid.0.clone(),
-                    ));
+                    return Err(ValidationError::CountUntilMutuallyExclusive(uid));
+                }
+
+                if let Some(by_second) = &rule.by_second {
+                    if by_second.0.iter().any(|s| *s > 60) {
+                        return Err(ValidationError::BySecondOutOfRange(uid));
+                    }
+                }
+
+                if let Some(by_minute) = &rule.by_minute {
+                    if by_minute.0.iter().any(|s| *s > 59) {
+                        return Err(ValidationError::ByMinuteOutOfRange(uid));
+                    }
+                }
+
+                if let Some(by_hour) = &rule.by_hour {
+                    if by_hour.0.iter().any(|s| *s > 23) {
+                        return Err(ValidationError::ByHourOutOfRange(uid));
+                    }
+                }
+
+                if let Some(by_day) = &rule.by_day {
+                    if by_day.0.iter().any(|s| s.num < -53 || s.num > 53 || s.num == 0) {
+                        return Err(ValidationError::ByDayOutOfRange(uid));
+                    }
+                }
+
+                if let Some(by_month_day) = &rule.by_month_day {
+                    if by_month_day.0.iter().any(|s| *s < -31 || *s > 31 || *s == 0) {
+                        return Err(ValidationError::ByMonthDayOutOfRange(uid));
+                    }
+                }
+
+                if let Some(by_year_day) = &rule.by_year_day {
+                    if by_year_day.0.iter().any(|s| *s < -366 || *s > 366 || *s == 0) {
+                        return Err(ValidationError::ByYearDayOutOfRange(uid));
+                    }
+                }
+
+                if let Some(by_week_no) = &rule.by_week_no {
+                    if by_week_no.0.iter().any(|s| *s < -53 || *s > 53 || *s == 0) {
+                        return Err(ValidationError::ByWeekNoOutOfRange(uid));
+                    }
+                }
+
+                if let Some(by_month) = &rule.by_month {
+                    if by_month.0.iter().any(|s| *s > 12 || *s == 0) {
+                        return Err(ValidationError::ByMonthOutOfRange(uid));
+                    }
                 }
             }
         }
@@ -413,34 +479,266 @@ impl fmt::Display for Frequency {
     }
 }
 
+/// How many `frequency` between each event?
+#[derive(Default, Deserialize)]
+#[serde(transparent)]
+struct Interval(u16);
+
+impl fmt::Display for Interval {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "INTERVAL={};", self.0)
+    }
+}
+
+/// Number of recurrences.
+#[derive(Default, Deserialize)]
+#[serde(transparent)]
+struct Count(u32);
+
+impl fmt::Display for Count {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "COUNT={};", self.0)
+    }
+}
+
+/// Date after which there will be no more recurrences.
+#[derive(Default, Deserialize)]
+#[serde(transparent)]
+struct Until(UtcDateTime);
+
+impl fmt::Display for Until {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "UNTIL={};", self.0.to_ical_format())
+    }
+}
+
+/// Seconds on which the event will recur.
+#[derive(Default, Deserialize)]
+#[serde(transparent)]
+struct BySecond(Vec<u16>);
+
+impl fmt::Display for BySecond {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let as_strs: Vec<_> = self.0.iter().map(ToString::to_string).collect();
+        write!(f, "BYSEC={};", as_strs.join(","))
+    }
+}
+
+/// Minutes on which the event will recur.
+#[derive(Default, Deserialize)]
+#[serde(transparent)]
+struct ByMinute(Vec<u16>);
+
+impl fmt::Display for ByMinute {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let as_strs: Vec<_> = self.0.iter().map(ToString::to_string).collect();
+        write!(f, "BYMINUTE={};", as_strs.join(","))
+    }
+}
+
+/// Hours on which the event will recur.
+#[derive(Default, Deserialize)]
+#[serde(transparent)]
+struct ByHour(Vec<u16>);
+
+impl fmt::Display for ByHour {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let as_strs: Vec<_> = self.0.iter().map(ToString::to_string).collect();
+        write!(f, "BYHOUR={};", as_strs.join(","))
+    }
+}
+
+/// Days of the week.
 #[derive(Clone, Copy, Default, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum Weekday {
+    // Monday
+    #[default]
+    Monday,
+    // Tuesday
+    Tuesday,
+    // Wednesday
+    Wednesday,
+    // Thursday
+    Thursday,
+    // Friday
+    Friday,
+    // Saturday
+    Saturday,
+    // Sunday
+    Sunday,
+}
+
+impl fmt::Display for Weekday {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Weekday::Monday => write!(f, "MO"),
+            Weekday::Tuesday => write!(f, "TU"),
+            Weekday::Wednesday => write!(f, "WE"),
+            Weekday::Thursday => write!(f, "TH"),
+            Weekday::Friday => write!(f, "FR"),
+            Weekday::Saturday => write!(f, "SA"),
+            Weekday::Sunday => write!(f, "SU"),
+        }
+    }
+}
+
+/// Day of the week and ordinal number indicating which of those weeksdays.
+#[derive(Default, Deserialize)]
+struct WeekdayNum {
+    day: Weekday,
+    num: i16,
+}
+
+impl fmt::Display for WeekdayNum {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{}", self.num, self.day)
+    }
+}
+
+/// Days of the week on which the event will recur.
+#[derive(Default, Deserialize)]
+#[serde(transparent)]
+struct ByDay(Vec<WeekdayNum>);
+
+impl fmt::Display for ByDay {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let as_strs: Vec<_> = self.0.iter().map(ToString::to_string).collect();
+        write!(f, "BYDAY={};", as_strs.join(","))
+    }
+}
+
+/// Days of the month on which the event will recur.
+#[derive(Default, Deserialize)]
+#[serde(transparent)]
+struct ByMonthDay(Vec<i16>);
+
+impl fmt::Display for ByMonthDay {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let as_strs: Vec<_> = self.0.iter().map(ToString::to_string).collect();
+        write!(f, "BYMONTHDAY={};", as_strs.join(","))
+    }
+}
+
+/// Days of the year on which the event will recur.
+#[derive(Default, Deserialize)]
+#[serde(transparent)]
+struct ByYearDay(Vec<i16>);
+
+impl fmt::Display for ByYearDay {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let as_strs: Vec<_> = self.0.iter().map(ToString::to_string).collect();
+        write!(f, "BYYEARDAY={};", as_strs.join(","))
+    }
+}
+
+/// Weeks of the year on which the event will recur.
+#[derive(Default, Deserialize)]
+#[serde(transparent)]
+struct ByWeekNo(Vec<i16>);
+
+impl fmt::Display for ByWeekNo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let as_strs: Vec<_> = self.0.iter().map(ToString::to_string).collect();
+        write!(f, "BYWEEKNO={};", as_strs.join(","))
+    }
+}
+
+/// Months on which the event will recur.
+#[derive(Default, Deserialize)]
+#[serde(transparent)]
+struct ByMonth(Vec<u8>);
+
+impl fmt::Display for ByMonth {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let as_strs: Vec<_> = self.0.iter().map(ToString::to_string).collect();
+        write!(f, "BYMONTH={};", as_strs.join(","))
+    }
+}
+
+/// First day of the week.
+#[derive(Default, Deserialize)]
+#[serde(transparent)]
+struct WeekStart(Weekday);
+
+impl fmt::Display for WeekStart {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "WKST={};", self.0)
+    }
+}
+
+#[derive(Default, Deserialize)]
 struct RecurrenceRule {
     /// Unit of time that recurrence happens on.
     /// e.g. daily, weekly, monthly.
     frequency: Frequency,
     /// How many `frequency` between each event?
     /// e.g. an weekly recurrence with interval of two is every other week.
-    interval: Option<u16>,
+    interval: Option<Interval>,
     /// Number of recurrences.
-    count: Option<u32>,
+    count: Option<Count>,
     /// Date after which there will be no more recurrences.
     until: Option<UtcDateTime>,
+    /// Seconds on which the event will recur.
+    by_second: Option<BySecond>,
+    /// Minutes on which the event will recur.
+    by_minute: Option<ByMinute>,
+    /// Hours on which the event will recur.
+    by_hour: Option<ByHour>,
+    /// Days of the week on which the event will recur.
+    by_day: Option<ByDay>,
+    /// Days of the month on which the event will recur.
+    by_month_day: Option<ByMonthDay>,
+    /// Days of the year on which the event will recur.
+    by_year_day: Option<ByYearDay>,
+    /// Weeks of the year on which the event will recur.
+    by_week_no: Option<ByWeekNo>,
+    /// Months of the year on which the event will recur.
+    by_month: Option<ByMonth>,
+    /// First day of the week.
+    week_start: Option<WeekStart>,
 }
 
 impl fmt::Display for RecurrenceRule {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut rule = "RRULE:".to_string();
-        rule.push_str(&format!("FREQ={};", self.frequency));
-        if let Some(interval) = self.interval {
-            rule.push_str(&format!("INTERVAL={interval};"));
+        write!(f, "RRULE:FREQ={};", self.frequency)?;
+        if let Some(interval) = &self.interval {
+            write!(f, "{interval}")?;
         }
-        if let Some(count) = self.count {
-            rule.push_str(&format!("COUNT={count};"));
+        if let Some(count) = &self.count {
+            write!(f, "{count}")?;
         }
-        if let Some(until) = self.until {
-            rule.push_str(&format!("UNTIL={};", until.to_ical_format()));
+        if let Some(until) = &self.until {
+            write!(f, "{until}")?;
         }
-        write!(f, "{rule}")
+        if let Some(by_second) = &self.by_second {
+            write!(f, "{by_second}")?;
+        }
+        if let Some(by_minute) = &self.by_minute {
+            write!(f, "{by_minute}")?;
+        }
+        if let Some(by_hour) = &self.by_hour {
+            write!(f, "{by_hour}")?;
+        }
+        if let Some(by_day) = &self.by_day {
+            write!(f, "{by_day}")?;
+        }
+        if let Some(by_month_day) = &self.by_month_day {
+            write!(f, "{by_month_day}")?;
+        }
+        if let Some(by_year_day) = &self.by_year_day {
+            write!(f, "{by_year_day}")?;
+        }
+        if let Some(by_week_no) = &self.by_week_no {
+            write!(f, "{by_week_no}")?;
+        }
+        if let Some(by_month) = &self.by_month {
+            write!(f, "{by_month}")?;
+        }
+        if let Some(week_start) = &self.week_start {
+            write!(f, "{week_start}")?;
+        }
+        Ok(())
     }
 }
 
@@ -554,129 +852,5 @@ impl fmt::Display for Event {
         self.recurrences.fmt(f)?;
         self.exceptions.fmt(f)?;
         folded_writeln!(f, "END:VEVENT")
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{
-        fold, Calendar, End, Event, RecurrenceRule, RecurrenceRules, Start, Uid, ValidationError,
-    };
-
-    /// Simple test of folding, check that line break and white space are inserted at 75 octets.
-    #[test]
-    fn folding_simple() {
-        assert_eq!(
-            fold("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbb".to_string()),
-            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\tbbbbbbbbbbbbbbbb"
-        );
-    }
-
-    /// Advanced test of folding, check that line break and white space are inserted at 75 octets in
-    /// the presence of multi-byte characters (ASCII characters 128-255).
-    #[test]
-    fn folding_multibyte_ascii_char() {
-        assert_eq!(
-            fold("ããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããããêêêêêêêêêêêêêêê".to_string()),
-            "ããããããããããããããããããããããããããããããããããããã\n\tãããããããããããããããããããããããããããããããããããã\n\tãããêêêêêêêêêêêêêêê"
-        );
-    }
-
-    /// Advanced test of folding, check that line break and white space are inserted at 75 octets in
-    /// the presence of multi-byte characters (2-byte characters from UTF-8).
-    #[test]
-    fn folding_multibyte_utf8_char() {
-        assert_eq!(
-            fold("ĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳŧŧŧŧŧŧŧŧŧŧŧŧŧŧŧŧ".to_string()),
-            "ĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳ\n\tĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳĳ\n\tĳĳĳŧŧŧŧŧŧŧŧŧŧŧŧŧŧŧŧ"
-        );
-    }
-
-    /// Advanced test of folding, where length of string is an exact multiple of the 75 octet
-    /// threshold, so one fold would appear to be enough if the consider additional length added by
-    /// the newline + white space isn't considered.
-    #[test]
-    fn folding_multiple() {
-        assert_eq!(
-            fold("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyzz".to_string()),
-            "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n\tyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\n\tzz"
-        )
-    }
-
-    // Check that duplicate UIDs are rejected.
-    #[test]
-    fn validation_duplicate_uid() {
-        let cal = Calendar {
-            events: vec![
-                Event {
-                    uid: Uid("1".to_string()),
-                    end: Some(Default::default()),
-                    ..Default::default()
-                },
-                Event { uid: Uid("1".to_string()), ..Default::default() },
-            ],
-            ..Default::default()
-        };
-        assert_eq!(cal.validate().unwrap_err(), ValidationError::DuplicateUid("1".to_string()));
-    }
-
-    // Check that a zero duration event is rejected.
-    #[test]
-    fn validation_zero_duration_event() {
-        // Only need to use `Default::default` here because that will produce a default date for
-        // `start` and a `None` for `end`.
-        let cal = Calendar { events: vec![Event { ..Default::default() }], ..Default::default() };
-        assert_eq!(cal.validate().unwrap_err(), ValidationError::ZeroDurationEvent("".to_string()));
-    }
-
-    // Check that mismatched start/end types are rejected.
-    #[test]
-    fn validation_mismatched_start_end_types() {
-        let cal = Calendar {
-            events: vec![Event {
-                start: Start::DateTime(Default::default()),
-                end: Some(End::Date(Default::default())),
-                ..Default::default()
-            }],
-            ..Default::default()
-        };
-        assert_eq!(
-            cal.validate().unwrap_err(),
-            ValidationError::MismatchedDateTypes("".to_string())
-        );
-
-        let cal = Calendar {
-            events: vec![Event {
-                start: Start::Date(Default::default()),
-                end: Some(End::DateTime(Default::default())),
-                ..Default::default()
-            }],
-            ..Default::default()
-        };
-        assert_eq!(
-            cal.validate().unwrap_err(),
-            ValidationError::MismatchedDateTypes("".to_string())
-        );
-    }
-
-    // Check that mutually exclusive fields in recurrence rules are rejected.
-    #[test]
-    fn validation_mutually_exclusive_count_until() {
-        let cal = Calendar {
-            events: vec![Event {
-                end: Some(Default::default()),
-                recurrence_rules: RecurrenceRules(vec![RecurrenceRule {
-                    count: Some(2),
-                    until: Some(Default::default()),
-                    ..Default::default()
-                }]),
-                ..Default::default()
-            }],
-            ..Default::default()
-        };
-        assert_eq!(
-            cal.validate().unwrap_err(),
-            ValidationError::RecurrenceCountUntilMutuallyExclusive("".to_string())
-        );
     }
 }

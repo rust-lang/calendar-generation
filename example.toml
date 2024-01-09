@@ -81,3 +81,35 @@ interval = 2
 count = 10
 # OPTIONAL: A date that the event repetitions should stop. Mutually exclusive with `count`.
 # until = "2025-01-01T00:00:00.00Z"
+# OPTIONAL: Seconds on which the event will recur. Must be between 0 and 60.
+# In the below example, this is at the 0th second of the minute and the 30th second of the minute.
+# by_second = [ 0, 30 ]
+# OPTIONAL: Minutes on which the event will recur. Must be between 0 and 59.
+# In the below example, this is at the 15th minute of the hour and the 45th minute of the hour.
+# by_minute = [ 15, 45 ]
+# OPTIONAL: Hours on which the event will recur. Must be between 0 and 23.
+# In the below example, this is at 3pm and 4pm.
+# by_hour = [ 15, 16 ]
+# OPTIONAL: Days of the week on which the event will recur.
+# `num` must be between -53 and 53 (excl. 0) and `day` must be one of "monday", "tuesday",
+# "wednesday", "thursday", "friday", "saturday", "sunday".
+# In the below example, this is on the first Sunday and on the second-to-last Tuesday.
+# by_day = [ { day = "sunday", num = 1 }, { day = "tuesday", num = -2 } ]
+# OPTIONAL: Days of the month on which the event will recur. Must be between -31 and 31 (excl. 0).
+# In the below example, this is on the fifth day of the month and the fifth-from-last day of the
+# month.
+# by_month_day = [ 5, -5 ]
+# OPTIONAL: Days of the year on which the event will recur. Must be between -366 and 366 (excl. 0).
+# In the below example, this is on the 100th day of the year and the 200th-from-last day of the
+# year.
+# by_year_day = [ 100, -200 ]
+# OPTIONAL: Weeks of the year on which the event will recur. Must be between 1 and 52.
+# In the below example, this is on the 12th week of the year and the 34th-from-last week of the
+# year.
+# by_week_no = [ 12, 34 ]
+# OPTIONAL: Months of the year on which the event will recur. Must be between 1 and 12.
+# In the below example, this is on the 2nd month of the year and the 4th month of the year.
+# by_month = [ 2, 4 ]
+# OPTIONAL: Day that will be considered start of the week. Must be one of "monday", "tuesday",
+# "wednesday", "thursday", "friday", "saturday", "sunday".
+# week_start = "monday"
