@@ -1,5 +1,8 @@
-use chrono::NaiveDate;
-use serde::Deserialize;
+use chrono::{NaiveDate, NaiveDateTime};
+use serde::{
+    de::{self, Visitor},
+    Deserialize, Deserializer,
+};
 use std::{
     collections::HashSet,
     fmt,
@@ -78,6 +81,9 @@ macro_rules! folded_writeln {
     };
 }
 
+/// `chrono::DateTime` fixed to UTC.
+type UtcDateTime = chrono::DateTime<chrono::Utc>;
+
 trait DateTimeExt {
     /// Generates an iCalendar date-time string format with the prefix symbols.
     /// e.g. `:19970714T173000Z` or `;TZID=America/New_York:19970714T133000`
@@ -92,14 +98,17 @@ impl DateTimeExt for UtcDateTime {
     }
 }
 
+impl DateTimeExt for NaiveDateTime {
+    fn to_ical_format(&self) -> String {
+        self.format("%Y%m%dT%H%M%S").to_string()
+    }
+}
+
 impl DateTimeExt for NaiveDate {
     fn to_ical_format(&self) -> String {
         self.format("%Y%m%d").to_string()
     }
 }
-
-/// `chrono::DateTime` fixed to UTC.
-type UtcDateTime = chrono::DateTime<chrono::Utc>;
 
 pub trait External {
     type Error;
@@ -143,6 +152,9 @@ pub struct Calendar {
     /// Description of the calendar.
     description: String,
 
+    /// Timezone definitions.
+    #[serde(default)]
+    timezones: Vec<Timezone>,
     /// Meta configuration (e.g. include other calendar descriptions).
     meta: Option<Meta>,
     /// List of events.
@@ -249,6 +261,9 @@ impl fmt::Display for Calendar {
         folded_writeln!(f, "CALSCALE:GREGORIAN")?;
         folded_writeln!(f, "X-WR-CALNAME:{}", self.name)?;
         folded_writeln!(f, "X-WR-CALDESC:{}", self.description)?;
+        for timezone in &self.timezones {
+            timezone.fmt(f)?;
+        }
         for event in &self.events {
             event.fmt(f)?;
         }
@@ -263,6 +278,173 @@ struct Meta {
     /// Other calendar TOML files that events should be included from.
     #[serde(default)]
     includes: Vec<PathBuf>,
+}
+
+/// Complete timezone definition.
+#[derive(Default, Deserialize)]
+struct Timezone {
+    /// Name of the timezone.
+    name: String,
+    /// Offset without DST.
+    standard: TimezoneOffsets,
+    /// Offset with DST.
+    daylight: TimezoneOffsets,
+}
+
+impl fmt::Display for Timezone {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        folded_writeln!(f, "BEGIN:VTIMEZONE")?;
+        folded_writeln!(f, "TZID:{}", self.name)?;
+        folded_writeln!(f, "X-LIC-LOCATION:{}", self.name)?;
+        folded_writeln!(f, "BEGIN:DAYLIGHT")?;
+        self.daylight.fmt(f)?;
+        folded_writeln!(f, "END:DAYLIGHT")?;
+        folded_writeln!(f, "BEGIN:STANDARD")?;
+        self.standard.fmt(f)?;
+        folded_writeln!(f, "END:STANDARD")?;
+        folded_writeln!(f, "END:VTIMEZONE")
+    }
+}
+
+/// Specific timezone definition.
+#[derive(Default, Deserialize)]
+struct TimezoneOffsets {
+    // Name of the timezone.
+    name: String,
+    /// When this timezone takes effect.
+    start: TimezoneStart,
+    /// When this timezone repeats.
+    rule: RecurrenceRule,
+    /// UTC offset in use when this timezone begins.
+    from: TimezoneOffsetFrom,
+    /// UTC offset when this timezone is in use.
+    to: TimezoneOffsetTo,
+}
+
+impl fmt::Display for TimezoneOffsets {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        folded_writeln!(f, "TZNAME:{}", self.name)?;
+        self.from.fmt(f)?;
+        self.to.fmt(f)?;
+        self.start.fmt(f)?;
+        folded_writeln!(f, "{}", self.rule)
+    }
+}
+
+/// Datetime that timezone starts.
+#[derive(Default, Deserialize)]
+#[serde(transparent)]
+struct TimezoneStart(NaiveDateTime);
+
+impl fmt::Display for TimezoneStart {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        folded_writeln!(f, "DTSTART:{}", self.0.to_ical_format())
+    }
+}
+
+/// UTC offset in use when this timezone begins.
+#[derive(Default, Deserialize)]
+#[serde(transparent)]
+struct TimezoneOffsetFrom(TimezoneOffset);
+
+impl fmt::Display for TimezoneOffsetFrom {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        folded_writeln!(f, "TZOFFSETFROM:{}", self.0)
+    }
+}
+
+/// UTC offset when this timezone is in use.
+#[derive(Default, Deserialize)]
+#[serde(transparent)]
+struct TimezoneOffsetTo(TimezoneOffset);
+
+impl fmt::Display for TimezoneOffsetTo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        folded_writeln!(f, "TZOFFSETTO:{}", self.0)
+    }
+}
+
+/// UTC offset for a timezone.
+#[derive(Debug, Default, PartialEq, Eq)]
+struct TimezoneOffset {
+    /// Adding or subtracting time from UTC.
+    neg: bool,
+    /// Number of hours difference.
+    hour: u8,
+    /// Number of minutes difference.
+    minute: u8,
+}
+
+impl<'de> Deserialize<'de> for TimezoneOffset {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct OffsetVisitor;
+
+        impl<'de> Visitor<'de> for OffsetVisitor {
+            type Value = TimezoneOffset;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("must be of format `{-/+}HHMM`")
+            }
+
+            fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                let err = de::Error::custom("must be of format `{-/+}HHMM`");
+
+                let (neg, remaining) = if value.starts_with('-') {
+                    (true, &value[1..])
+                } else if value.starts_with('+') {
+                    (false, &value[1..])
+                } else {
+                    return Err(err);
+                };
+
+                let (hour, remaining) = if remaining.len() > 2 {
+                    let hour = match u8::from_str_radix(&remaining[..2], 10) {
+                        Ok(hour) if hour > 23 => return Err(err),
+                        Ok(hour) => hour,
+                        Err(_) => return Err(err),
+                    };
+                    (hour, &remaining[2..])
+                } else {
+                    return Err(err);
+                };
+
+                let minute = if remaining.len() == 2 {
+                    match u8::from_str_radix(&remaining, 10) {
+                        Ok(min) if min > 59 => return Err(err),
+                        Ok(min) => min,
+                        Err(_) => return Err(err),
+                    }
+                } else {
+                    return Err(err);
+                };
+
+                if hour == 0 && minute == 0 {
+                    return Err(err);
+                }
+
+                Ok(TimezoneOffset { neg, hour, minute })
+            }
+        }
+
+        deserializer.deserialize_string(OffsetVisitor)
+    }
+}
+
+impl fmt::Display for TimezoneOffset {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.neg {
+            write!(f, "-")?;
+        } else {
+            write!(f, "+")?;
+        }
+        write!(f, "{:02}{:02}", self.hour, self.minute)
+    }
 }
 
 /// Datetime that an event was created.
@@ -325,6 +507,8 @@ impl fmt::Display for Description {
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum Start {
+    DateTimeWithTz { date: NaiveDateTime, timezone: String },
+    DateWithTz { date: NaiveDate, timezone: String },
     DateTime(UtcDateTime),
     Date(NaiveDate),
 }
@@ -338,8 +522,14 @@ impl Default for Start {
 impl fmt::Display for Start {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Start::DateTime(t) => folded_writeln!(f, "DTSTART:{}", t.to_ical_format()),
-            Start::Date(t) => folded_writeln!(f, "DTSTART;VALUE=DATE:{}", t.to_ical_format()),
+            Start::DateTimeWithTz { date, timezone } => {
+                folded_writeln!(f, "DTSTART;TZ={timezone}:{}", date.to_ical_format())
+            }
+            Start::DateWithTz { date, timezone } => {
+                folded_writeln!(f, "DTSTART;TZ={timezone};VALUE=DATE:{}", date.to_ical_format())
+            }
+            Start::DateTime(date) => folded_writeln!(f, "DTSTART:{}", date.to_ical_format()),
+            Start::Date(date) => folded_writeln!(f, "DTSTART;VALUE=DATE:{}", date.to_ical_format()),
         }
     }
 }
@@ -348,6 +538,8 @@ impl fmt::Display for Start {
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum End {
+    DateTimeWithTz { date: NaiveDateTime, timezone: String },
+    DateWithTz { date: NaiveDate, timezone: String },
     DateTime(UtcDateTime),
     Date(NaiveDate),
 }
@@ -361,6 +553,12 @@ impl Default for End {
 impl fmt::Display for End {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            End::DateTimeWithTz { date, timezone } => {
+                folded_writeln!(f, "DTEND;TZ={timezone}:{}", date.to_ical_format())
+            }
+            End::DateWithTz { date, timezone } => {
+                folded_writeln!(f, "DTEND;TZ={timezone};VALUE=DATE:{}", date.to_ical_format())
+            }
             End::DateTime(t) => folded_writeln!(f, "DTEND:{}", t.to_ical_format()),
             End::Date(t) => folded_writeln!(f, "DTEND;VALUE=DATE:{}", t.to_ical_format()),
         }

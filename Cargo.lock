@@ -355,6 +355,7 @@ dependencies = [
  "chrono",
  "serde",
  "thiserror",
+ "toml",
 ]
 
 [[package]]

@@ -1,7 +1,9 @@
+use serde::Deserialize;
+
 use crate::{
     fold, ByDay, ByHour, ByMinute, ByMonth, ByMonthDay, BySecond, ByWeekNo, ByYearDay, Calendar,
-    Count, End, Event, RecurrenceRule, RecurrenceRules, Start, Uid, ValidationError, Weekday,
-    WeekdayNum,
+    Count, End, Event, RecurrenceRule, RecurrenceRules, Start, TimezoneOffset, Uid,
+    ValidationError, Weekday, WeekdayNum,
 };
 
 /// Simple test of folding, check that line break and white space are inserted at 75 octets.
@@ -314,4 +316,34 @@ fn validation_invalid_by_month() {
         ..Default::default()
     };
     assert_eq!(cal.validate().unwrap_err(), ValidationError::ByMonthOutOfRange("".to_string()));
+}
+
+#[test]
+fn parse_tz_offset() {
+    #[derive(Deserialize)]
+    struct Harness {
+        offset: TimezoneOffset,
+    }
+
+    // Valid, negative
+    assert_eq!(
+        toml::from_str::<Harness>("offset = \"-1000\"").unwrap().offset,
+        TimezoneOffset { neg: true, hour: 10, minute: 00 }
+    );
+    // Valid, positive
+    assert_eq!(
+        toml::from_str::<Harness>("offset = \"+1323\"").unwrap().offset,
+        TimezoneOffset { neg: false, hour: 13, minute: 23 }
+    );
+    // Invalid, no sign
+    assert!(toml::from_str::<Harness>("offset = \"1323\"").is_err());
+    // Invalid, zero
+    assert!(toml::from_str::<Harness>("offset = \"-0000\"").is_err());
+    assert!(toml::from_str::<Harness>("offset = \"+0000\"").is_err());
+    // Invalid, out of range
+    assert!(toml::from_str::<Harness>("offset = \"+4500\"").is_err());
+    assert!(toml::from_str::<Harness>("offset = \"-1078\"").is_err());
+    // Invalid, wrong length
+    assert!(toml::from_str::<Harness>("offset = \"+450000\"").is_err());
+    assert!(toml::from_str::<Harness>("offset = \"-10\"").is_err());
 }
