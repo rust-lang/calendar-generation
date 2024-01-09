@@ -169,6 +169,9 @@ impl Calendar {
             for include in &meta.includes {
                 let mut child = Calendar::load::<E>(include)?;
                 root.events.extend(child.events.drain(..));
+                root.timezones.extend(child.timezones.drain(..));
+                root.timezones.sort_by(|t1, t2| t1.name.cmp(&t2.name));
+                root.timezones.dedup_by(|t1, t2| t1.name == t2.name);
             }
         }
         Ok(root)
