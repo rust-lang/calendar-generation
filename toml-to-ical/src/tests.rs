@@ -175,7 +175,7 @@ fn validation_invalid_by_day() {
         events: vec![Event {
             end: Some(Default::default()),
             recurrence_rules: RecurrenceRules(vec![RecurrenceRule {
-                by_day: Some(ByDay(vec![WeekdayNum { day: Weekday::Monday, num: 0 }])),
+                by_day: Some(ByDay(vec![WeekdayNum { day: Weekday::Monday, num: Some(0) }])),
                 ..Default::default()
             }]),
             ..Default::default()
@@ -188,7 +188,7 @@ fn validation_invalid_by_day() {
         events: vec![Event {
             end: Some(Default::default()),
             recurrence_rules: RecurrenceRules(vec![RecurrenceRule {
-                by_day: Some(ByDay(vec![WeekdayNum { day: Weekday::Monday, num: 54 }])),
+                by_day: Some(ByDay(vec![WeekdayNum { day: Weekday::Monday, num: Some(54) }])),
                 ..Default::default()
             }]),
             ..Default::default()

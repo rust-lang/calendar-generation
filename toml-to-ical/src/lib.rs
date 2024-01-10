@@ -241,7 +241,11 @@ impl Calendar {
                 }
 
                 if let Some(by_day) = &rule.by_day {
-                    if by_day.0.iter().any(|s| s.num < -53 || s.num > 53 || s.num == 0) {
+                    if by_day
+                        .0
+                        .iter()
+                        .any(|s| s.num.is_some_and(|num| num < -53 || num > 53 || num == 0))
+                    {
                         return Err(ValidationError::ByDayOutOfRange(uid));
                     }
                 }
@@ -858,12 +862,16 @@ impl fmt::Display for Weekday {
 #[derive(Default, Deserialize)]
 struct WeekdayNum {
     day: Weekday,
-    num: i16,
+    num: Option<i16>,
 }
 
 impl fmt::Display for WeekdayNum {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}", self.num, self.day)
+        if let Some(num) = self.num {
+            write!(f, "{}{}", num, self.day)
+        } else {
+            write!(f, "{}", self.day)
+        }
     }
 }
 
