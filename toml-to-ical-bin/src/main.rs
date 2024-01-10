@@ -11,6 +11,8 @@ use toml_to_ical::{Calendar, External, ValidationError};
 
 #[derive(Debug, Error)]
 enum Error {
+    #[error("Failed because input is not a file: {0:?}")]
+    NonFileInput(PathBuf),
     #[error("Failed to open input calendar description: {0}")]
     OpenInput(#[from] IoError),
     #[error("Failed to deserialize input calendar description: {0}")]
@@ -33,12 +35,21 @@ struct Opt {
     output: Option<PathBuf>,
 }
 
-struct Session;
+struct Session<'p> {
+    base_path: &'p Path,
+}
 
-impl External for Session {
+impl<'p> Session<'p> {
+    fn new(base_path: &'p Path) -> Self {
+        Self { base_path }
+    }
+}
+
+impl<'p> External for Session<'p> {
     type Error = Error;
 
-    fn from_path(path: &Path) -> Result<Calendar, Error> {
+    fn load_without_includes(&self, path: &Path) -> Result<Calendar, Error> {
+        let path = self.base_path.join(path);
         let as_str = read_to_string(path)?;
         from_str(&as_str).map_err(Into::into)
     }
@@ -102,7 +113,14 @@ impl io::Write for Output {
 fn generate() -> Result<(), Error> {
     let opts = Opt::parse();
 
-    let calendar = Calendar::load::<Session>(&opts.input)?;
+    if !opts.input.is_file() {
+        Err(Error::NonFileInput(opts.input.to_path_buf()))?;
+    }
+    // All files, even relative paths to files in the current
+    // directory, have a `parent`.
+    let base_path = opts.input.parent().unwrap();
+    let ctx = Session::new(base_path);
+    let calendar = Calendar::load(&ctx, &opts.input)?;
     calendar.validate()?;
 
     let mut output = if let Some(output) = opts.output {

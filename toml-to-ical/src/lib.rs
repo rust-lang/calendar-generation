@@ -113,7 +113,7 @@ impl DateTimeExt for NaiveDate {
 pub trait External {
     type Error;
 
-    fn from_path(path: &Path) -> Result<Calendar, Self::Error>;
+    fn load_without_includes(&self, path: &Path) -> Result<Calendar, Self::Error>;
 }
 
 #[derive(Debug, Error, Eq, PartialEq)]
@@ -163,11 +163,11 @@ pub struct Calendar {
 }
 
 impl Calendar {
-    pub fn load<E: External>(path: &Path) -> Result<Self, <E as External>::Error> {
-        let mut root = E::from_path(path)?;
+    pub fn load<E: External>(ctx: &E, path: &Path) -> Result<Self, <E as External>::Error> {
+        let mut root = ctx.load_without_includes(path)?;
         if let Some(meta) = &root.meta {
             for include in &meta.includes {
-                let mut child = Calendar::load::<E>(include)?;
+                let mut child = Calendar::load(ctx, include)?;
                 root.events.extend(child.events.drain(..));
                 root.timezones.extend(child.timezones.drain(..));
                 root.timezones.sort_by(|t1, t2| t1.name.cmp(&t2.name));
