@@ -2,8 +2,11 @@
 
 set -euxo pipefail
 
-mkdir -p $2
-for path in $1/*.toml; do
-  filename=$(basename $path)
-  toml-to-ical $path -o $2/${filename%.*}.ics
+mkdir -p "$2"
+
+shopt -s globstar
+for path in "$1"/**/*.toml; do
+  filepath=${path##$1/}
+  mkdir -p $2/$(dirname "$filepath")
+  toml-to-ical $path -o $2/${filepath%.*}.ics
 done
