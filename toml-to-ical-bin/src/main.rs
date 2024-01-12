@@ -120,7 +120,8 @@ fn generate() -> Result<(), Error> {
     // directory, have a `parent`.
     let base_path = opts.input.parent().unwrap();
     let ctx = Session::new(base_path);
-    let calendar = Calendar::load(&ctx, &opts.input)?;
+    let input = opts.input.strip_prefix(base_path).unwrap();
+    let calendar = Calendar::load(&ctx, input)?;
     calendar.validate()?;
 
     let mut output = if let Some(output) = opts.output {
