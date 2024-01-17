@@ -35,21 +35,19 @@ struct Opt {
     output: Option<PathBuf>,
 }
 
-struct Session<'p> {
-    base_path: &'p Path,
-}
+struct Session;
 
-impl<'p> Session<'p> {
-    fn new(base_path: &'p Path) -> Self {
-        Self { base_path }
+impl Session {
+    fn new() -> Self {
+        Self
     }
 }
 
-impl<'p> External for Session<'p> {
+impl External for Session {
     type Error = Error;
 
-    fn load_without_includes(&self, path: &Path) -> Result<Calendar, Error> {
-        let path = self.base_path.join(path);
+    fn load_without_includes(&self, path: &Path, base_path: &Path) -> Result<Calendar, Error> {
+        let path = base_path.join(path);
         let as_str = read_to_string(path)?;
         from_str(&as_str).map_err(Into::into)
     }
@@ -119,9 +117,9 @@ fn generate() -> Result<(), Error> {
     // All files, even relative paths to files in the current
     // directory, have a `parent`.
     let base_path = opts.input.parent().unwrap();
-    let ctx = Session::new(base_path);
+    let ctx = Session::new();
     let input = opts.input.strip_prefix(base_path).unwrap();
-    let calendar = Calendar::load(&ctx, input)?;
+    let calendar = Calendar::load(&ctx, input, base_path)?;
     calendar.validate()?;
 
     let mut output = if let Some(output) = opts.output {
