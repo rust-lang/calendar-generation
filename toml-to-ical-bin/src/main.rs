@@ -28,10 +28,9 @@ enum Error {
 #[derive(Parser)]
 #[command(author, version, about)]
 struct Opt {
-    // Path to the input calendar description.
+    #[arg(short, long, help = "A .toml file describing a calendar")]
     input: PathBuf,
-    /// Specify path to write the iCalendar to [default: -]
-    #[arg(short, long)]
+    #[arg(short, long, default_value = "-", help = "Specify path to write the iCalendar to")]
     output: Option<PathBuf>,
 }
 
