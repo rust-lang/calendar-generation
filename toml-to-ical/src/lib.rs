@@ -540,10 +540,6 @@ impl fmt::Display for Description {
 trait DateProperty {
     fn is_date(&self) -> bool;
 
-    fn is_datetime(&self) -> bool {
-        !self.is_date()
-    }
-
     fn tz(&self) -> Option<&str>;
 
     fn has_tz(&self) -> bool {
