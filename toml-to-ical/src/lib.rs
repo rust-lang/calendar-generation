@@ -964,7 +964,7 @@ struct RecurrenceRule {
     /// Number of recurrences.
     count: Option<Count>,
     /// Date after which there will be no more recurrences.
-    until: Option<UtcDateTime>,
+    until: Option<Until>,
     /// Seconds on which the event will recur.
     by_second: Option<BySecond>,
     /// Minutes on which the event will recur.
