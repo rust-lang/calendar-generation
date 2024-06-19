@@ -768,7 +768,7 @@ struct Interval(u16);
 
 impl fmt::Display for Interval {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "INTERVAL={};", self.0)
+        write!(f, "INTERVAL={}", self.0)
     }
 }
 
@@ -779,7 +779,7 @@ struct Count(u32);
 
 impl fmt::Display for Count {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "COUNT={};", self.0)
+        write!(f, "COUNT={}", self.0)
     }
 }
 
@@ -790,7 +790,7 @@ struct Until(UtcDateTime);
 
 impl fmt::Display for Until {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "UNTIL={};", self.0.to_ical_format())
+        write!(f, "UNTIL={}", self.0.to_ical_format())
     }
 }
 
@@ -802,7 +802,7 @@ struct BySecond(Vec<u16>);
 impl fmt::Display for BySecond {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let as_strs: Vec<_> = self.0.iter().map(ToString::to_string).collect();
-        write!(f, "BYSEC={};", as_strs.join(","))
+        write!(f, "BYSEC={}", as_strs.join(","))
     }
 }
 
@@ -814,7 +814,7 @@ struct ByMinute(Vec<u16>);
 impl fmt::Display for ByMinute {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let as_strs: Vec<_> = self.0.iter().map(ToString::to_string).collect();
-        write!(f, "BYMINUTE={};", as_strs.join(","))
+        write!(f, "BYMINUTE={}", as_strs.join(","))
     }
 }
 
@@ -826,7 +826,7 @@ struct ByHour(Vec<u16>);
 impl fmt::Display for ByHour {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let as_strs: Vec<_> = self.0.iter().map(ToString::to_string).collect();
-        write!(f, "BYHOUR={};", as_strs.join(","))
+        write!(f, "BYHOUR={}", as_strs.join(","))
     }
 }
 
@@ -890,7 +890,7 @@ struct ByDay(Vec<WeekdayNum>);
 impl fmt::Display for ByDay {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let as_strs: Vec<_> = self.0.iter().map(ToString::to_string).collect();
-        write!(f, "BYDAY={};", as_strs.join(","))
+        write!(f, "BYDAY={}", as_strs.join(","))
     }
 }
 
@@ -902,7 +902,7 @@ struct ByMonthDay(Vec<i16>);
 impl fmt::Display for ByMonthDay {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let as_strs: Vec<_> = self.0.iter().map(ToString::to_string).collect();
-        write!(f, "BYMONTHDAY={};", as_strs.join(","))
+        write!(f, "BYMONTHDAY={}", as_strs.join(","))
     }
 }
 
@@ -914,7 +914,7 @@ struct ByYearDay(Vec<i16>);
 impl fmt::Display for ByYearDay {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let as_strs: Vec<_> = self.0.iter().map(ToString::to_string).collect();
-        write!(f, "BYYEARDAY={};", as_strs.join(","))
+        write!(f, "BYYEARDAY={}", as_strs.join(","))
     }
 }
 
@@ -926,7 +926,7 @@ struct ByWeekNo(Vec<i16>);
 impl fmt::Display for ByWeekNo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let as_strs: Vec<_> = self.0.iter().map(ToString::to_string).collect();
-        write!(f, "BYWEEKNO={};", as_strs.join(","))
+        write!(f, "BYWEEKNO={}", as_strs.join(","))
     }
 }
 
@@ -938,7 +938,7 @@ struct ByMonth(Vec<u8>);
 impl fmt::Display for ByMonth {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let as_strs: Vec<_> = self.0.iter().map(ToString::to_string).collect();
-        write!(f, "BYMONTH={};", as_strs.join(","))
+        write!(f, "BYMONTH={}", as_strs.join(","))
     }
 }
 
@@ -949,7 +949,7 @@ struct WeekStart(Weekday);
 
 impl fmt::Display for WeekStart {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "WKST={};", self.0)
+        write!(f, "WKST={}", self.0)
     }
 }
 
@@ -987,42 +987,42 @@ struct RecurrenceRule {
 
 impl fmt::Display for RecurrenceRule {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "RRULE:FREQ={};", self.frequency)?;
+        write!(f, "RRULE:FREQ={}", self.frequency)?;
         if let Some(interval) = &self.interval {
-            write!(f, "{interval}")?;
+            write!(f, ";{interval}")?;
         }
         if let Some(count) = &self.count {
-            write!(f, "{count}")?;
+            write!(f, ";{count}")?;
         }
         if let Some(until) = &self.until {
-            write!(f, "{until}")?;
+            write!(f, ";{until}")?;
         }
         if let Some(by_second) = &self.by_second {
-            write!(f, "{by_second}")?;
+            write!(f, ";{by_second}")?;
         }
         if let Some(by_minute) = &self.by_minute {
-            write!(f, "{by_minute}")?;
+            write!(f, ";{by_minute}")?;
         }
         if let Some(by_hour) = &self.by_hour {
-            write!(f, "{by_hour}")?;
+            write!(f, ";{by_hour}")?;
         }
         if let Some(by_day) = &self.by_day {
-            write!(f, "{by_day}")?;
+            write!(f, ";{by_day}")?;
         }
         if let Some(by_month_day) = &self.by_month_day {
-            write!(f, "{by_month_day}")?;
+            write!(f, ";{by_month_day}")?;
         }
         if let Some(by_year_day) = &self.by_year_day {
-            write!(f, "{by_year_day}")?;
+            write!(f, ";{by_year_day}")?;
         }
         if let Some(by_week_no) = &self.by_week_no {
-            write!(f, "{by_week_no}")?;
+            write!(f, ";{by_week_no}")?;
         }
         if let Some(by_month) = &self.by_month {
-            write!(f, "{by_month}")?;
+            write!(f, ";{by_month}")?;
         }
         if let Some(week_start) = &self.week_start {
-            write!(f, "{week_start}")?;
+            write!(f, ";{week_start}")?;
         }
         Ok(())
     }
