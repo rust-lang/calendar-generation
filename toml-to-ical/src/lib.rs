@@ -458,8 +458,8 @@ impl<'de> Deserialize<'de> for TimezoneOffset {
                     return Err(err);
                 };
 
-                if hour == 0 && minute == 0 {
-                    return Err(err);
+                if hour == 0 && neg {
+                    return Err(de::Error::custom("must be `+0000`, not `-0000`"));
                 }
 
                 Ok(TimezoneOffset { neg, hour, minute })

@@ -335,11 +335,14 @@ fn parse_tz_offset() {
         toml::from_str::<Harness>("offset = \"+1323\"").unwrap().offset,
         TimezoneOffset { neg: false, hour: 13, minute: 23 }
     );
+    assert_eq!(
+        toml::from_str::<Harness>("offset = \"+0000\"").unwrap().offset,
+        TimezoneOffset { neg: false, hour: 00, minute: 00 }
+    );
     // Invalid, no sign
     assert!(toml::from_str::<Harness>("offset = \"1323\"").is_err());
-    // Invalid, zero
+    // Invalid, zeroes can't be negative
     assert!(toml::from_str::<Harness>("offset = \"-0000\"").is_err());
-    assert!(toml::from_str::<Harness>("offset = \"+0000\"").is_err());
     // Invalid, out of range
     assert!(toml::from_str::<Harness>("offset = \"+4500\"").is_err());
     assert!(toml::from_str::<Harness>("offset = \"-1078\"").is_err());
