@@ -343,6 +343,8 @@ fn parse_tz_offset() {
     assert!(toml::from_str::<Harness>("offset = \"1323\"").is_err());
     // Invalid, zeroes can't be negative
     assert!(toml::from_str::<Harness>("offset = \"-0000\"").is_err());
+    // ... but can be positive
+    assert!(toml::from_str::<Harness>("offset = \"+0000\"").is_ok());
     // Invalid, out of range
     assert!(toml::from_str::<Harness>("offset = \"+4500\"").is_err());
     assert!(toml::from_str::<Harness>("offset = \"-1078\"").is_err());
