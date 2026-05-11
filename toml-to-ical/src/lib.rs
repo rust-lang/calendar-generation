@@ -125,6 +125,10 @@ pub enum ValidationError {
     ZeroDurationEvent(String),
     #[error("Event {0} has different types for `start` and `end`")]
     MismatchedDateTypes(String),
+    #[error("Event {0} has different types for `start` and `recurrences`")]
+    MismatchedRecurrencesDateTypes(String),
+    #[error("Event {0} has different types for `start` and `exceptions`")]
+    MismatchedExceptionsDateTypes(String),
     #[error("Event {0} has recurrence rule which sets mutually exclusive `until` and `count`")]
     CountUntilMutuallyExclusive(String),
     #[error("Event {0} does not exist but a specific recurrence is requested")]
@@ -208,12 +212,28 @@ impl Calendar {
                 }
             }
 
+            if !event.recurrences.is_empty() {
+                if event.start.is_date() != event.recurrences.is_date()
+                    || event.start.has_tz() != event.recurrences.has_tz()
+                {
+                    return Err(ValidationError::MismatchedExceptionsDateTypes(uid));
+                }
+            }
+
+            if !event.exceptions.is_empty() {
+                if event.start.is_date() != event.exceptions.is_date()
+                    || event.start.has_tz() != event.exceptions.has_tz()
+                {
+                    return Err(ValidationError::MismatchedExceptionsDateTypes(uid));
+                }
+            }
+
             if let Some(recurrence_id) = &event.recurrence_id {
                 if !seen_uids.contains(&event.uid) {
                     return Err(ValidationError::RecurrenceDoesNotExist(uid));
                 }
 
-                if !event.recurrence_rules.0.is_empty() || !event.recurrences.0.is_empty() {
+                if !event.recurrence_rules.0.is_empty() || !event.recurrences.is_empty() {
                     return Err(ValidationError::RecurrenceCannotHaveRecurrenceRules(uid));
                 }
 
@@ -1038,32 +1058,148 @@ impl fmt::Display for RecurrenceRules {
 }
 
 #[derive(Default, Deserialize)]
-#[serde(transparent)]
-struct Recurrences(Vec<UtcDateTime>);
+#[serde(untagged)]
+enum Recurrences {
+    DateTimeWithTz {
+        timezone: String,
+        dates: Vec<NaiveDateTime>,
+    },
+    DateWithTz {
+        timezone: String,
+        dates: Vec<NaiveDate>,
+    },
+    DateTime(Vec<UtcDateTime>),
+    Date(Vec<NaiveDate>),
+    #[default]
+    Empty,
+}
+
+impl Recurrences {
+    fn is_empty(&self) -> bool {
+        matches!(self, Recurrences::Empty)
+    }
+
+    fn is_date(&self) -> bool {
+        match *self {
+            Recurrences::DateTimeWithTz { .. } | Recurrences::DateTime(_) => false,
+            Recurrences::DateWithTz { .. } | Recurrences::Date(_) => true,
+            Recurrences::Empty => panic!(),
+        }
+    }
+
+    fn tz(&self) -> Option<&str> {
+        match self {
+            Recurrences::DateTimeWithTz { timezone, .. }
+            | Recurrences::DateWithTz { timezone, .. } => Some(timezone.as_str()),
+            Recurrences::DateTime(_) | Recurrences::Date(_) => None,
+            Recurrences::Empty => panic!(),
+        }
+    }
+
+    fn has_tz(&self) -> bool {
+        self.tz().is_some()
+    }
+}
 
 impl fmt::Display for Recurrences {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if !self.0.is_empty() {
-            let recurrence_strs: Vec<_> = self.0.iter().map(|d| d.to_ical_format()).collect();
-            folded_writeln!(f, "RDATE:{}", recurrence_strs.join(","))
-        } else {
-            Ok(())
+        let comment;
+        let exception_strs: Vec<_>;
+
+        match self {
+            Recurrences::Empty => return Ok(()),
+            Recurrences::DateTimeWithTz { timezone, dates } => {
+                comment = format!(";TZID={timezone}");
+                exception_strs = dates.iter().map(|d| d.to_ical_format()).collect()
+            }
+            Recurrences::DateWithTz { timezone, dates } => {
+                comment = format!(";TZID={timezone};VALUE=DATE");
+                exception_strs = dates.iter().map(|d| d.to_ical_format()).collect()
+            }
+            Recurrences::DateTime(t) => {
+                comment = String::new();
+                exception_strs = t.iter().map(|d| d.to_ical_format()).collect()
+            }
+            Recurrences::Date(t) => {
+                comment = format!(";VALUE=DATE");
+                exception_strs = t.iter().map(|d| d.to_ical_format()).collect()
+            }
         }
+
+        folded_writeln!(f, "RDATE{comment}:{}", exception_strs.join(","))
     }
 }
 
 #[derive(Default, Deserialize)]
-#[serde(transparent)]
-struct Exceptions(Vec<UtcDateTime>);
+#[serde(untagged)]
+enum Exceptions {
+    DateTimeWithTz {
+        timezone: String,
+        dates: Vec<NaiveDateTime>,
+    },
+    DateWithTz {
+        timezone: String,
+        dates: Vec<NaiveDate>,
+    },
+    DateTime(Vec<UtcDateTime>),
+    Date(Vec<NaiveDate>),
+    #[default]
+    Empty,
+}
+
+impl Exceptions {
+    fn is_empty(&self) -> bool {
+        matches!(self, Exceptions::Empty)
+    }
+
+    fn is_date(&self) -> bool {
+        match *self {
+            Exceptions::DateTimeWithTz { .. } | Exceptions::DateTime(_) => false,
+            Exceptions::DateWithTz { .. } | Exceptions::Date(_) => true,
+            Exceptions::Empty => panic!(),
+        }
+    }
+
+    fn tz(&self) -> Option<&str> {
+        match self {
+            Exceptions::DateTimeWithTz { timezone, .. }
+            | Exceptions::DateWithTz { timezone, .. } => Some(timezone.as_str()),
+            Exceptions::DateTime(_) | Exceptions::Date(_) => None,
+            Exceptions::Empty => panic!(),
+        }
+    }
+
+    fn has_tz(&self) -> bool {
+        self.tz().is_some()
+    }
+}
 
 impl fmt::Display for Exceptions {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if !self.0.is_empty() {
-            let exception_strs: Vec<_> = self.0.iter().map(|d| d.to_ical_format()).collect();
-            folded_writeln!(f, "EXDATE:{}", exception_strs.join(","))
-        } else {
-            Ok(())
+        let comment;
+        let exception_strs: Vec<_>;
+
+        match self {
+            Exceptions::Empty => return Ok(()),
+            Exceptions::DateTimeWithTz { timezone, dates } => {
+                comment = format!(";TZID={timezone}");
+                exception_strs = dates.iter().map(|d| d.to_ical_format()).collect()
+            }
+            Exceptions::DateWithTz { timezone, dates } => {
+                comment = format!(";TZID={timezone};VALUE=DATE");
+                exception_strs = dates.iter().map(|d| d.to_ical_format()).collect()
+            }
+            Exceptions::DateTime(t) => {
+                comment = String::new();
+                exception_strs = t.iter().map(|d| d.to_ical_format()).collect()
+            }
+            Exceptions::Date(t) => {
+                comment = format!(";VALUE=DATE");
+                exception_strs = t.iter().map(|d| d.to_ical_format()).collect()
+            }
         }
+
+        folded_writeln!(f, "EXDATE{comment}:{}", exception_strs.join(","))
     }
 }
 

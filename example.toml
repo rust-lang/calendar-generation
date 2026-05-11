@@ -85,12 +85,25 @@ status = "confirmed"
 # or "transparency" (free).
 transparency = "opaque"
 
-# OPTIONAL: Dates to when this event should repeat. Must be list of strings. Expected
-# RFC 3339 format. Compatible with `recurrence_rules`. Does not appear to be supported by all
-# calendar applications (e.g. Calendar on Apple devices).
+# OPTIONAL: Additional dates to when this event should repeat.
+#
+# Must be either a list of strings or a structure with a timezone and a list of strings.
+# e.g. `{ timezone = "Europe/Amsterdam", dates = ["2024-01-04T11:00:00.00"] }` and
+#      `{ timezone = "Europe/Amsterdam", dates = ["2024-01-04"] }`
+#
+# Format must match `start`/`end`.
+#
+# Compatible with `recurrence_rules`.
+# Does not appear to be supported by all calendar applications (e.g. Calendar on Apple devices).
 recurrences = [ "2024-02-02T11:00:00.00Z" ]
-# OPTIONAL: Exception dates to when this event should repeat. Must be list of strings. Expected
-# RFC 3339 format.
+
+# OPTIONAL: Exception dates to when this event should NOT repeat
+#
+# Must be either a list of strings or a structure with a timezone and a list of strings.
+# e.g. `{ timezone = "Europe/Amsterdam", dates = ["2024-01-04T11:00:00.00"] }` and
+#      `{ timezone = "Europe/Amsterdam", dates = ["2024-01-04"] }`
+#
+# Format must match `start`/`end`.
 exceptions = [ "2024-02-01T11:00:00.00Z" ]
 
 # OPTIONAL: Identify a specific recurrence of an event. This must be a date/datetime that
