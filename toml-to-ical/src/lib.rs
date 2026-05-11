@@ -443,7 +443,7 @@ impl<'de> Deserialize<'de> for TimezoneOffset {
                 formatter.write_str("must be of format `{-/+}HHMM`")
             }
 
-            fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
             where
                 E: de::Error,
             {
